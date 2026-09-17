@@ -2747,6 +2747,21 @@ Future<void> aggiungiAcconto() async {
             ),
             const SizedBox(height: 24),
             const Text(
+              'Numero preventivo',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: numeroController,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Numero preventivo',
+                hintText: 'Es. PREV-2026-0001',
+                prefixIcon: Icon(Icons.numbers),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
               'Dati Cliente',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
@@ -4004,7 +4019,7 @@ Future<void> aggiungiAcconto() async {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Modifica ${widget.preventivo['numero']}'),
+        title: const Text('Modifica preventivo'),
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
       ),
@@ -4110,11 +4125,22 @@ Future<void> aggiungiAcconto() async {
                       subtitle: Text(
                         'Quantità: ${quantita.toStringAsFixed(2)}  •  Prezzo unitario: € ${prezzo.toStringAsFixed(2)}  •  Totale: € ${riga.toStringAsFixed(2)}',
                       ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () {
-                          setState(() => articoli.removeAt(i));
-                        },
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            tooltip: 'Modifica prodotto / servizio',
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () => modificaArticolo(i),
+                          ),
+                          IconButton(
+                            tooltip: 'Elimina',
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () {
+                              setState(() => articoli.removeAt(i));
+                            },
+                          ),
+                        ],
                       ),
                     );
                   },
