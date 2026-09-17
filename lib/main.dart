@@ -2296,6 +2296,7 @@ class NuovoPreventivoScreen extends StatefulWidget {
 
 class _NuovoPreventivoScreenState extends State<NuovoPreventivoScreen> {
   final clienteController = TextEditingController();
+  final numeroController = TextEditingController();
   final prodottoController = TextEditingController();
   final prezzoController = TextEditingController();
   final quantitaController = TextEditingController(text: '1');
@@ -3780,6 +3781,81 @@ Future<void> aggiungiAcconto() async {
     }
   }
 
+  Future<void> modificaArticolo(int index) async {
+    final articolo = articoli[index];
+    final nomeController = TextEditingController(text: articolo['nome']?.toString() ?? '');
+    final prezzoEditController = TextEditingController(
+      text: ((articolo['prezzo'] as num?)?.toDouble() ?? 0).toStringAsFixed(2),
+    );
+    final quantitaEditController = TextEditingController(
+      text: ((articolo['quantita'] as num?)?.toDouble() ?? 1).toString(),
+    );
+
+    try {
+      final risultato = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Modifica prodotto / servizio'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nomeController,
+                  decoration: const InputDecoration(labelText: 'Descrizione'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: quantitaEditController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Quantità'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: prezzoEditController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Prezzo unitario €'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('ANNULLA'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final nome = nomeController.text.trim();
+                final prezzo = double.tryParse(prezzoEditController.text.trim().replaceAll(',', '.'));
+                final quantita = double.tryParse(quantitaEditController.text.trim().replaceAll(',', '.'));
+                if (nome.isEmpty || prezzo == null || prezzo < 0 || quantita == null || quantita <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Inserisci descrizione, prezzo e quantità validi.')),
+                  );
+                  return;
+                }
+                Navigator.pop(dialogContext, {
+                  'nome': nome,
+                  'prezzo': prezzo,
+                  'quantita': quantita,
+                });
+              },
+              child: const Text('SALVA'),
+            ),
+          ],
+        ),
+      );
+      if (risultato != null && mounted) {
+        setState(() => articoli[index] = risultato);
+      }
+    } finally {
+      nomeController.dispose();
+      prezzoEditController.dispose();
+      quantitaEditController.dispose();
+    }
+  }
+
   void aggiungi() {
     final nome = prodottoController.text.trim();
     final prezzo = double.tryParse(
@@ -3809,9 +3885,10 @@ Future<void> aggiungiAcconto() async {
   Future<void> salva() async {
     if (busy) return;
 
+    final numero = numeroController.text.trim();
     final cliente = clienteController.text.trim();
 
-    if (cliente.isEmpty || articoli.isEmpty) {
+    if (numero.isEmpty || cliente.isEmpty || articoli.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Inserisci il cliente e almeno un prodotto.'),
