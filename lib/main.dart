@@ -2482,6 +2482,101 @@ Future<void> aggiungiAcconto() async {
 
   double get saldoResiduo => totale - totaleAcconti;
 
+  Future<void> modificaArticolo(int index) async {
+    final articolo = articoli[index];
+    final nomeController = TextEditingController(
+      text: articolo['nome']?.toString() ?? '',
+    );
+    final prezzoControllerEdit = TextEditingController(
+      text: ((articolo['prezzo'] as num?)?.toDouble() ?? 0).toStringAsFixed(2),
+    );
+    final quantitaControllerEdit = TextEditingController(
+      text: ((articolo['quantita'] as num?)?.toDouble() ?? 1).toString(),
+    );
+
+    try {
+      final risultato = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Modifica prodotto / servizio'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nomeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Descrizione',
+                    prefixIcon: Icon(Icons.inventory_2_outlined),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: quantitaControllerEdit,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Quantità',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: prezzoControllerEdit,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Prezzo unitario €',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('ANNULLA'),
+            ),
+            FilledButton.icon(
+              onPressed: () {
+                final nome = nomeController.text.trim();
+                final prezzo = double.tryParse(
+                  prezzoControllerEdit.text.trim().replaceAll(',', '.'),
+                );
+                final quantita = double.tryParse(
+                  quantitaControllerEdit.text.trim().replaceAll(',', '.'),
+                );
+
+                if (nome.isEmpty || prezzo == null || prezzo < 0 ||
+                    quantita == null || quantita <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Inserisci descrizione, prezzo e quantità validi.'),
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(dialogContext, {
+                  'nome': nome,
+                  'prezzo': prezzo,
+                  'quantita': quantita,
+                });
+              },
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('SALVA'),
+            ),
+          ],
+        ),
+      );
+
+      if (risultato != null && mounted) {
+        setState(() => articoli[index] = risultato);
+      }
+    } finally {
+      nomeController.dispose();
+      prezzoControllerEdit.dispose();
+      quantitaControllerEdit.dispose();
+    }
+  }
+
   @override
   void dispose() {
     numeroController.dispose();
@@ -3781,80 +3876,7 @@ Future<void> aggiungiAcconto() async {
     }
   }
 
-  Future<void> modificaArticolo(int index) async {
-    final articolo = articoli[index];
-    final nomeController = TextEditingController(text: articolo['nome']?.toString() ?? '');
-    final prezzoEditController = TextEditingController(
-      text: ((articolo['prezzo'] as num?)?.toDouble() ?? 0).toStringAsFixed(2),
-    );
-    final quantitaEditController = TextEditingController(
-      text: ((articolo['quantita'] as num?)?.toDouble() ?? 1).toString(),
-    );
 
-    try {
-      final risultato = await showDialog<Map<String, dynamic>>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Modifica prodotto / servizio'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nomeController,
-                  decoration: const InputDecoration(labelText: 'Descrizione'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: quantitaEditController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Quantità'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: prezzoEditController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Prezzo unitario €'),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('ANNULLA'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final nome = nomeController.text.trim();
-                final prezzo = double.tryParse(prezzoEditController.text.trim().replaceAll(',', '.'));
-                final quantita = double.tryParse(quantitaEditController.text.trim().replaceAll(',', '.'));
-                if (nome.isEmpty || prezzo == null || prezzo < 0 || quantita == null || quantita <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Inserisci descrizione, prezzo e quantità validi.')),
-                  );
-                  return;
-                }
-                Navigator.pop(dialogContext, {
-                  'nome': nome,
-                  'prezzo': prezzo,
-                  'quantita': quantita,
-                });
-              },
-              child: const Text('SALVA'),
-            ),
-          ],
-        ),
-      );
-      if (risultato != null && mounted) {
-        setState(() => articoli[index] = risultato);
-      }
-    } finally {
-      nomeController.dispose();
-      prezzoEditController.dispose();
-      quantitaEditController.dispose();
-    }
-  }
 
   void aggiungi() {
     final nome = prodottoController.text.trim();
