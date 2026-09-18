@@ -709,30 +709,73 @@ CREATE TABLE fatture (
     if (decoded is! Map<String, dynamic>) {
       throw const FormatException('Backup non valido.');
     }
-    final clienti = List<Map<String, dynamic>>.from(
-      (decoded['clienti'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)),
-    );
-    final prodotti = List<Map<String, dynamic>>.from(
-      (decoded['prodotti'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)),
-    );
-    final preventivi = List<Map<String, dynamic>>.from(
-      (decoded['preventivi'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)),
-    );
-    final fatture = List<Map<String, dynamic>>.from(
-      (decoded['fatture'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)),
-    );
+
+    List<Map<String, dynamic>> readRows(String key) {
+      final value = decoded[key];
+      if (value is! List) return <Map<String, dynamic>>[];
+      return value
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+
+    final clienti = readRows('clienti');
+    final prodotti = readRows('prodotti');
+    final preventivi = readRows('preventivi');
+    final fatture = readRows('fatture');
     final db = await database;
+
+    // L'importazione è un MERGE: non cancella mai i dati già presenti.
+    // I record già presenti vengono riconosciuti tramite una chiave naturale
+    // e saltati, evitando duplicazioni dovute agli ID del backup.
+    String norm(dynamic value) => (value ?? '').toString().trim().toLowerCase();
+
     await db.transaction((txn) async {
-      await txn.delete('preventivi');
-      await txn.delete('prodotti');
-      await txn.delete('clienti');
-      await txn.delete('fatture');
-      for (final row in clienti) await txn.insert('clienti', row);
-      for (final row in prodotti) await txn.insert('prodotti', row);
-      for (final row in preventivi) await txn.insert('preventivi', row);
-      for (final row in fatture) await txn.insert('fatture', row);
+      final existingClienti = await txn.query('clienti', columns: ['nome']);
+      final existingProdotti = await txn.query('prodotti', columns: ['nome']);
+      final existingPreventivi = await txn.query('preventivi', columns: ['numero']);
+      final existingFatture = await txn.query('fatture', columns: ['numero']);
+
+      final clientiKeys = existingClienti.map((r) => norm(r['nome'])).toSet();
+      final prodottiKeys = existingProdotti.map((r) => norm(r['nome'])).toSet();
+      final preventiviKeys = existingPreventivi.map((r) => norm(r['numero'])).toSet();
+      final fattureKeys = existingFatture.map((r) => norm(r['numero'])).toSet();
+
+      for (final source in clienti) {
+        final key = norm(source['nome']);
+        if (key.isEmpty || clientiKeys.contains(key)) continue;
+        final row = Map<String, dynamic>.from(source)..remove('id');
+        await txn.insert('clienti', row);
+        clientiKeys.add(key);
+      }
+
+      for (final source in prodotti) {
+        final key = norm(source['nome']);
+        if (key.isEmpty || prodottiKeys.contains(key)) continue;
+        final row = Map<String, dynamic>.from(source)..remove('id');
+        await txn.insert('prodotti', row);
+        prodottiKeys.add(key);
+      }
+
+      for (final source in preventivi) {
+        final key = norm(source['numero']);
+        if (key.isEmpty || preventiviKeys.contains(key)) continue;
+        final row = Map<String, dynamic>.from(source)..remove('id');
+        await txn.insert('preventivi', row);
+        preventiviKeys.add(key);
+      }
+
+      for (final source in fatture) {
+        final key = norm(source['numero']);
+        if (key.isEmpty || fattureKeys.contains(key)) continue;
+        final row = Map<String, dynamic>.from(source)..remove('id');
+        await txn.insert('fatture', row);
+        fattureKeys.add(key);
+      }
     });
+
     await createAutomaticBackup();
+    await NotificationService.instance.refreshMonthlyReminder();
   }
 
   Future<void> autoBackup() async {
@@ -5220,7 +5263,7 @@ class _BackupScreenState extends State<BackupScreen> {
         builder: (context) => AlertDialog(
           title: const Text('Importa backup'),
           content: const Text(
-            'L’importazione sostituirà i dati attuali di clienti, servizi, preventivi e acconti. Continuare?',
+            'L’importazione aggiungerà i dati del backup a quelli già presenti. I dati esistenti non verranno cancellati e gli elementi già presenti verranno ignorati per evitare duplicati. Continuare?',
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('ANNULLA')),
@@ -5296,7 +5339,7 @@ class _BackupScreenState extends State<BackupScreen> {
           ],
           const SizedBox(height: 18),
           const Text(
-            'Il backup contiene clienti, prodotti/servizi, preventivi e acconti. L’importazione sostituisce i dati presenti sul dispositivo.',
+            'Il backup contiene clienti, prodotti/servizi, preventivi, fatture e acconti. L’importazione aggiunge i dati senza cancellare quelli presenti e ignora i duplicati.',
             style: TextStyle(fontSize: 13),
           ),
         ],
