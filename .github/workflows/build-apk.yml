@@ -124,6 +124,21 @@ jobs:
         working-directory: ${{ env.APP_DIR }}
         run: flutter pub get
 
+      - name: Prepare launcher icon
+        working-directory: ${{ env.APP_DIR }}
+        shell: bash
+        run: |
+          set -e
+          # L'icona è inclusa anche come testo base64 per evitare che un upload
+          # parziale del repository faccia sparire il file PNG.
+          if [ ! -f assets/app_icon.png ]; then
+            echo "assets/app_icon.png non presente: lo ricreo dal file base64..."
+            test -f assets/app_icon.b64
+            base64 -d assets/app_icon.b64 > assets/app_icon.png
+          fi
+          test -s assets/app_icon.png
+          file assets/app_icon.png
+
       - name: Generate app launcher icon
         working-directory: ${{ env.APP_DIR }}
         run: dart run flutter_launcher_icons
