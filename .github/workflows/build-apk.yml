@@ -124,6 +124,10 @@ jobs:
         working-directory: ${{ env.APP_DIR }}
         run: flutter pub get
 
+      - name: Generate app launcher icon
+        working-directory: ${{ env.APP_DIR }}
+        run: dart run flutter_launcher_icons
+
       - name: Check project
         working-directory: ${{ env.APP_DIR }}
         run: |
