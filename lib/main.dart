@@ -18,7 +18,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart' as sf;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -4938,8 +4938,8 @@ class _ProdottiScreenState extends State<ProdottiScreen> {
 
       final picked = result.files.single;
       final bytes = picked.bytes ?? await File(picked.path!).readAsBytes();
-      final document = PdfDocument(inputBytes: bytes);
-      final text = PdfTextExtractor(document).extractText();
+      final document = sf.PdfDocument(inputBytes: bytes);
+      final text = sf.PdfTextExtractor(document).extractText();
       document.dispose();
 
       final righe = _estraiProdottiDaTestoPdf(text);
