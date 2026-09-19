@@ -81,6 +81,8 @@ class PreventiviApp extends StatelessWidget {
       ),
       home: const DashboardScreen(),
     );
+
+
   }
 }
 
@@ -199,7 +201,7 @@ class DatabaseHelper {
 
     return openDatabase(
       p.join(dbPath, fileName),
-      version: 12,
+      version: 11,
       onCreate: (db, version) async {
         await db.execute('''
 CREATE TABLE clienti (
@@ -323,11 +325,6 @@ CREATE TABLE fatture (
         if (oldVersion < 11) {
           await db.execute("ALTER TABLE preventivi ADD COLUMN pagato INTEGER NOT NULL DEFAULT 0");
         }
-        if (oldVersion < 12) {
-          // Normalizza i vecchi preventivi: garantisce che i campi usati
-          // dalla schermata Modifica siano sempre valorizzati.
-          await db.execute("UPDATE preventivi SET accettato = COALESCE(accettato, 0), pagato = COALESCE(pagato, 0), acconti = COALESCE(acconti, '[]')");
-        }
       },
     );
   }
@@ -346,8 +343,6 @@ CREATE TABLE fatture (
     final risultato = <Map<String, dynamic>>[];
 
     for (final p in preventivi) {
-      // Gli acconti/saldi riguardano esclusivamente preventivi accettati.
-      if ((p['accettato'] as num?)?.toInt() != 1) continue;
       if ((p['pagato'] as num?)?.toInt() == 1) continue;
 
       final totale = (p['totale'] as num?)?.toDouble() ?? 0;
@@ -385,8 +380,6 @@ CREATE TABLE fatture (
     final risultato = <Map<String, dynamic>>[];
 
     for (final p in preventivi) {
-      // Mostra gli acconti solo se il preventivo è stato accettato.
-      if ((p['accettato'] as num?)?.toInt() != 1) continue;
       try {
         final raw = jsonDecode((p['acconti'] ?? '[]').toString());
         if (raw is List) {
@@ -530,34 +523,6 @@ CREATE TABLE fatture (
     });
     await autoBackup();
     return id;
-  }
-
-  Future<int> updateFattura({
-    required int id,
-    required String numero,
-    required String cliente,
-    required List<Map<String, dynamic>> articoli,
-    required double ivaPercent,
-    required double totale,
-    required String pagamento,
-    String? iban,
-  }) async {
-    final result = await (await database).update(
-      'fatture',
-      {
-        'numero': numero,
-        'cliente': cliente,
-        'articoli': jsonEncode(articoli),
-        'iva_percent': ivaPercent,
-        'totale': totale,
-        'pagamento': pagamento,
-        'iban': iban,
-      },
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-    await autoBackup();
-    return result;
   }
 
   Future<int> deleteFattura(int id) async {
@@ -709,73 +674,46 @@ CREATE TABLE fatture (
     if (decoded is! Map<String, dynamic>) {
       throw const FormatException('Backup non valido.');
     }
-
-    List<Map<String, dynamic>> readRows(String key) {
-      final value = decoded[key];
-      if (value is! List) return <Map<String, dynamic>>[];
-      return value
-          .whereType<Map>()
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
-    }
-
-    final clienti = readRows('clienti');
-    final prodotti = readRows('prodotti');
-    final preventivi = readRows('preventivi');
-    final fatture = readRows('fatture');
+    final clienti = List<Map<String, dynamic>>.from(
+      (decoded['clienti'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)),
+    );
+    final prodotti = List<Map<String, dynamic>>.from(
+      (decoded['prodotti'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)),
+    );
+    final preventivi = List<Map<String, dynamic>>.from(
+      (decoded['preventivi'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)),
+    );
+    final fatture = List<Map<String, dynamic>>.from(
+      (decoded['fatture'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)),
+    );
     final db = await database;
-
-    // L'importazione è un MERGE: non cancella mai i dati già presenti.
-    // I record già presenti vengono riconosciuti tramite una chiave naturale
-    // e saltati, evitando duplicazioni dovute agli ID del backup.
-    String norm(dynamic value) => (value ?? '').toString().trim().toLowerCase();
-
+    // L'importazione è incrementale: non cancella i dati già presenti.
+    // Le righe con lo stesso ID vengono aggiornate, quelle nuove vengono aggiunte.
     await db.transaction((txn) async {
-      final existingClienti = await txn.query('clienti', columns: ['nome']);
-      final existingProdotti = await txn.query('prodotti', columns: ['nome']);
-      final existingPreventivi = await txn.query('preventivi', columns: ['numero']);
-      final existingFatture = await txn.query('fatture', columns: ['numero']);
-
-      final clientiKeys = existingClienti.map((r) => norm(r['nome'])).toSet();
-      final prodottiKeys = existingProdotti.map((r) => norm(r['nome'])).toSet();
-      final preventiviKeys = existingPreventivi.map((r) => norm(r['numero'])).toSet();
-      final fattureKeys = existingFatture.map((r) => norm(r['numero'])).toSet();
-
-      for (final source in clienti) {
-        final key = norm(source['nome']);
-        if (key.isEmpty || clientiKeys.contains(key)) continue;
-        final row = Map<String, dynamic>.from(source)..remove('id');
-        await txn.insert('clienti', row);
-        clientiKeys.add(key);
+      Future<void> upsert(String table, Map<String, dynamic> row) async {
+        final id = row['id'];
+        if (id != null) {
+          final values = Map<String, dynamic>.from(row)..remove('id');
+          final updated = await txn.update(
+            table,
+            values,
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+          if (updated == 0) {
+            await txn.insert(table, row);
+          }
+        } else {
+          await txn.insert(table, row);
+        }
       }
 
-      for (final source in prodotti) {
-        final key = norm(source['nome']);
-        if (key.isEmpty || prodottiKeys.contains(key)) continue;
-        final row = Map<String, dynamic>.from(source)..remove('id');
-        await txn.insert('prodotti', row);
-        prodottiKeys.add(key);
-      }
-
-      for (final source in preventivi) {
-        final key = norm(source['numero']);
-        if (key.isEmpty || preventiviKeys.contains(key)) continue;
-        final row = Map<String, dynamic>.from(source)..remove('id');
-        await txn.insert('preventivi', row);
-        preventiviKeys.add(key);
-      }
-
-      for (final source in fatture) {
-        final key = norm(source['numero']);
-        if (key.isEmpty || fattureKeys.contains(key)) continue;
-        final row = Map<String, dynamic>.from(source)..remove('id');
-        await txn.insert('fatture', row);
-        fattureKeys.add(key);
-      }
+      for (final row in clienti) await upsert('clienti', row);
+      for (final row in prodotti) await upsert('prodotti', row);
+      for (final row in preventivi) await upsert('preventivi', row);
+      for (final row in fatture) await upsert('fatture', row);
     });
-
     await createAutomaticBackup();
-    await NotificationService.instance.refreshMonthlyReminder();
   }
 
   Future<void> autoBackup() async {
@@ -871,16 +809,16 @@ class PdfGenerator {
         ),
       ),
       pw.SizedBox(height: 5),
-      if (parrocchia.isNotEmpty) pw.Text('Parrocchia: $parrocchia'),
+      pw.Text(
+        cliente,
+        style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold),
+      ),
       if (indirizzo.isNotEmpty) pw.Text('Indirizzo: $indirizzo'),
       if (telefono.isNotEmpty) pw.Text('Telefono: $telefono'),
       if (email.isNotEmpty) pw.Text('Email: $email'),
       if (partitaIva.isNotEmpty) pw.Text('Partita IVA: $partitaIva'),
       if (codiceFiscale.isNotEmpty) pw.Text('Codice Fiscale: $codiceFiscale'),
-      pw.Text(
-        cliente,
-        style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold),
-      ),
+      if (parrocchia.isNotEmpty) pw.Text('Parrocchia: $parrocchia'),
     ];
 
     pdf.addPage(
@@ -928,6 +866,7 @@ class PdfGenerator {
                     pw.SizedBox(height: 8),
                     pw.Text('N. $numero', style: const pw.TextStyle(fontSize: 11)),
                     pw.Text('Data: $data', style: const pw.TextStyle(fontSize: 11)),
+
                   ],
                 ),
               ),
@@ -1179,7 +1118,7 @@ class PdfGenerator {
                     ),
                   pw.SizedBox(height: 6),
                   pw.Text(
-                    'FATTURA PRO-FORMA',
+                    'Fattura pro-forma',
                     style: pw.TextStyle(
                       fontSize: 20,
                       fontWeight: pw.FontWeight.bold,
@@ -1193,7 +1132,7 @@ class PdfGenerator {
                 children: [
                   pw.Text('N. $numero', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
                   pw.Text('Data: $data'),
-                  pw.Text('marca da bollo assolta in originale'),
+                  pw.Text('Marca da bollo assolta in originale'),
                 ],
               ),
             ],
@@ -1201,13 +1140,12 @@ class PdfGenerator {
           pw.SizedBox(height: 18),
           pw.Text('CLIENTE', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: gold)),
           pw.SizedBox(height: 4),
-          if (value('parrocchia').isNotEmpty) pw.Text('Parrocchia: ${value('parrocchia')}'),
+          pw.Text(cliente, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
           if (value('indirizzo').isNotEmpty) pw.Text('Indirizzo: ${value('indirizzo')}'),
           if (value('telefono').isNotEmpty) pw.Text('Telefono: ${value('telefono')}'),
           if (value('email').isNotEmpty) pw.Text('Email: ${value('email')}'),
           if (value('partita_iva').isNotEmpty) pw.Text('Partita IVA: ${value('partita_iva')}'),
           if (value('codice_fiscale').isNotEmpty) pw.Text('Codice Fiscale: ${value('codice_fiscale')}'),
-          pw.Text(cliente, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 20),
           pw.Table(
             border: pw.TableBorder.all(color: PdfColor.fromHex('#D8C98A')),
@@ -1240,10 +1178,14 @@ class PdfGenerator {
               children: [
                 pw.Text('DATI AZIENDA', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: gold)),
                 pw.SizedBox(height: 4),
-                pw.Text('di CARPENTIERI ALFONSO', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                pw.Text('Sede legale: via Ugo Pirro, 9 - 84100 Salerno'),
-                pw.Text('Cell. 328 697 2865'),
-                pw.Text('P. IVA 06051430657'),
+                pw.Text('Verde Emanuele', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                pw.Text('via Mario Francesco Pagano 8'),
+                pw.Text('80022 Arzano - NA'),
+                pw.Text('C.F. VRDMNL76H22F839Q'),
+                pw.Text('P.IVA 06089401217'),
+                pw.Text('Cel: 3331798874'),
+                pw.Text('verdeemanuele@gmail.com'),
+                pw.Text('PEC: verdeemanuele@pec.it'),
               ],
             ),
           ),
@@ -1255,10 +1197,10 @@ class PdfGenerator {
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Text('Metodo di pagamento: $pagamento', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                if (pagamento == 'Bonifico')
+                if (pagamento == 'Bonifico' && (iban ?? '').trim().isNotEmpty)
                   pw.Padding(
                     padding: const pw.EdgeInsets.only(top: 4),
-                    child: pw.Text('IBAN: ${((iban ?? '').trim().isEmpty ? 'IT28F0538715206000003630167' : iban!.trim())}'),
+                    child: pw.Text('IBAN: ${iban!.trim()}'),
                   ),
               ],
             ),
@@ -1269,7 +1211,7 @@ class PdfGenerator {
 
     await Printing.sharePdf(
       bytes: await pdf.save(),
-      filename: 'Fattura_Pro-Forma_$numero.pdf',
+      filename: 'Fattura_$numero.pdf',
     );
   }
 
@@ -1277,9 +1219,8 @@ class PdfGenerator {
 
 class CreaFatturaScreen extends StatefulWidget {
   final Map<String, dynamic>? preventivo;
-  final Map<String, dynamic>? fattura;
 
-  const CreaFatturaScreen({super.key, this.preventivo, this.fattura});
+  const CreaFatturaScreen({super.key, this.preventivo});
 
   @override
   State<CreaFatturaScreen> createState() => _CreaFatturaScreenState();
@@ -1302,16 +1243,14 @@ class _CreaFatturaScreenState extends State<CreaFatturaScreen> {
   }
 
   Future<void> _precompila() async {
-    final f = widget.fattura;
-    if (f != null) {
-      _numero.text = (f['numero'] ?? '').toString();
-      cliente = (f['cliente'] ?? '').toString();
+    _numero.text = await DatabaseHelper.instance.prossimoNumeroFattura();
+    final p = widget.preventivo;
+    if (p != null) {
+      cliente = (p['cliente'] ?? '').toString();
       _cliente.text = cliente ?? '';
-      _iva.text = ((f['iva_percent'] as num?)?.toDouble() ?? 0).toString();
-      pagamento = (f['pagamento'] ?? 'Contanti').toString();
-      _iban.text = (f['iban'] ?? '').toString();
+      _iva.text = ((p['iva_percent'] as num?)?.toDouble() ?? 0).toString();
       try {
-        final raw = jsonDecode((f['articoli'] ?? '[]').toString());
+        final raw = jsonDecode((p['articoli'] ?? '[]').toString());
         if (raw is List) {
           articoli.addAll(raw.map((e) => {
             'nome': (e['nome'] ?? '').toString(),
@@ -1320,24 +1259,6 @@ class _CreaFatturaScreenState extends State<CreaFatturaScreen> {
           }));
         }
       } catch (_) {}
-    } else {
-      _numero.text = await DatabaseHelper.instance.prossimoNumeroFattura();
-      final p = widget.preventivo;
-      if (p != null) {
-        cliente = (p['cliente'] ?? '').toString();
-        _cliente.text = cliente ?? '';
-        _iva.text = ((p['iva_percent'] as num?)?.toDouble() ?? 0).toString();
-        try {
-          final raw = jsonDecode((p['articoli'] ?? '[]').toString());
-          if (raw is List) {
-            articoli.addAll(raw.map((e) => {
-              'nome': (e['nome'] ?? '').toString(),
-              'prezzo': (e['prezzo'] as num?)?.toDouble() ?? 0,
-              'quantita': (e['quantita'] as num?)?.toDouble() ?? 1,
-            }));
-          }
-        } catch (_) {}
-      }
     }
     if (mounted) setState(() {});
   }
@@ -1428,41 +1349,26 @@ class _CreaFatturaScreenState extends State<CreaFatturaScreen> {
     setState(() => salvando = true);
     try {
       final numero = _numero.text.trim();
-      if (widget.fattura != null) {
-        await DatabaseHelper.instance.updateFattura(
-          id: (widget.fattura!['id'] as num).toInt(),
-          numero: numero,
-          cliente: cliente!,
-          articoli: articoli,
-          ivaPercent: ivaPercent,
-          totale: totale,
-          pagamento: pagamento,
-          iban: pagamento == 'Bonifico' ? _iban.text.trim() : null,
-        );
-      } else {
-        await DatabaseHelper.instance.insertFattura(
-          numero: numero,
-          cliente: cliente!,
-          articoli: articoli,
-          ivaPercent: ivaPercent,
-          totale: totale,
-          pagamento: pagamento,
-          iban: pagamento == 'Bonifico' ? _iban.text.trim() : null,
-        );
-      }
+      await DatabaseHelper.instance.insertFattura(
+        numero: numero,
+        cliente: cliente!,
+        articoli: articoli,
+        ivaPercent: ivaPercent,
+        totale: totale,
+        pagamento: pagamento,
+        iban: pagamento == 'Bonifico' ? _iban.text.trim() : null,
+      );
       await PdfGenerator.generaECondividiFattura(
         numero: numero,
         cliente: cliente!,
         articoli: articoli,
         ivaPercent: ivaPercent,
         pagamento: pagamento,
-        iban: pagamento == 'Bonifico'
-            ? (_iban.text.trim().isEmpty ? 'IT28F0538715206000003630167' : _iban.text.trim())
-            : null,
+        iban: pagamento == 'Bonifico' ? _iban.text.trim() : null,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(widget.fattura != null ? 'Fattura modificata e PDF pronto per la condivisione.' : 'Fattura salvata e PDF pronto per la condivisione.')),
+        const SnackBar(content: Text('Fattura salvata e PDF pronto per la condivisione.')),
       );
       Navigator.pop(context);
     } catch (e) {
@@ -1491,7 +1397,7 @@ class _CreaFatturaScreenState extends State<CreaFatturaScreen> {
     const darkGold = Color(0xFF9A7000);
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.fattura != null ? 'Modifica fattura' : (widget.preventivo == null ? 'Crea fattura' : 'Fattura da preventivo')),
+        title: Text(widget.preventivo == null ? 'Crea fattura' : 'Fattura da preventivo'),
         actions: [
           IconButton(
             tooltip: 'Salva fattura',
@@ -1620,12 +1526,14 @@ class _CreaFatturaScreenState extends State<CreaFatturaScreen> {
                       DropdownMenuItem(value: 'Contanti', child: Text('Contanti')),
                       DropdownMenuItem(value: 'Bonifico', child: Text('Bonifico')),
                     ],
-                    onChanged: (v) => setState(() {
-                      pagamento = v ?? 'Contanti';
-                      if (pagamento == 'Bonifico' && _iban.text.trim().isEmpty) {
-                        _iban.text = 'IT28F0538715206000003630167';
-                      }
-                    }),
+                    onChanged: (v) {
+                      setState(() {
+                        pagamento = v ?? 'Contanti';
+                        if (pagamento == 'Bonifico' && _iban.text.trim().isEmpty) {
+                          _iban.text = 'IT72R0357601601010002078806';
+                        }
+                      });
+                    },
                   ),
                   if (pagamento == 'Bonifico') ...[
                     const SizedBox(height: 12),
@@ -1634,7 +1542,7 @@ class _CreaFatturaScreenState extends State<CreaFatturaScreen> {
                       keyboardType: TextInputType.text,
                       decoration: const InputDecoration(
                         labelText: 'IBAN',
-                        hintText: 'Inserisci IBAN',
+                        hintText: 'IT72R0357601601010002078806',
                         prefixIcon: Icon(Icons.account_balance),
                       ),
                     ),
@@ -1676,7 +1584,7 @@ class _CreaFatturaScreenState extends State<CreaFatturaScreen> {
             icon: salvando
                 ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.receipt_long_rounded),
-            label: Text(widget.fattura != null ? 'SALVA MODIFICHE E PDF' : 'CREA FATTURA E PDF'),
+            label: const Text('CREA FATTURA E PDF'),
           ),
         ],
       ),
@@ -1795,21 +1703,6 @@ class _ListaFattureScreenState extends State<ListaFattureScreen> {
               ],
               const SizedBox(height: 8),
               Row(children: [
-                Expanded(child: OutlinedButton.icon(
-                  onPressed: () async {
-                    Navigator.pop(ctx);
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => CreaFatturaScreen(fattura: f),
-                      ),
-                    );
-                    await _carica();
-                  },
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('MODIFICA'),
-                )),
-                const SizedBox(width: 10),
                 Expanded(child: FilledButton.icon(
                   onPressed: () async {
                     await PdfGenerator.generaECondividiFattura(
@@ -2338,8 +2231,8 @@ class NuovoPreventivoScreen extends StatefulWidget {
 }
 
 class _NuovoPreventivoScreenState extends State<NuovoPreventivoScreen> {
-  final clienteController = TextEditingController();
   final numeroController = TextEditingController();
+  final clienteController = TextEditingController();
   final prodottoController = TextEditingController();
   final prezzoController = TextEditingController();
   final quantitaController = TextEditingController(text: '1');
@@ -2352,6 +2245,10 @@ class _NuovoPreventivoScreenState extends State<NuovoPreventivoScreen> {
   bool accettato = false;
   bool pagato = false;
   bool busy = false;
+
+  // Indice della riga che si sta modificando.
+  // null = inserimento di una nuova riga.
+  int? indiceArticoloInModifica;
 
   double get imponibile => articoli.fold<double>(
         0,
@@ -2525,98 +2422,16 @@ Future<void> aggiungiAcconto() async {
 
   double get saldoResiduo => totale - totaleAcconti;
 
-  Future<void> modificaArticolo(int index) async {
-    final articolo = articoli[index];
-    final nomeController = TextEditingController(
-      text: articolo['nome']?.toString() ?? '',
-    );
-    final prezzoControllerEdit = TextEditingController(
-      text: ((articolo['prezzo'] as num?)?.toDouble() ?? 0).toStringAsFixed(2),
-    );
-    final quantitaControllerEdit = TextEditingController(
-      text: ((articolo['quantita'] as num?)?.toDouble() ?? 1).toString(),
-    );
+  @override
+  void initState() {
+    super.initState();
+    _impostaNumeroProgressivo();
+  }
 
-    try {
-      final risultato = await showDialog<Map<String, dynamic>>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Modifica prodotto / servizio'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nomeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Descrizione',
-                    prefixIcon: Icon(Icons.inventory_2_outlined),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: quantitaControllerEdit,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'Quantità',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: prezzoControllerEdit,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'Prezzo unitario €',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('ANNULLA'),
-            ),
-            FilledButton.icon(
-              onPressed: () {
-                final nome = nomeController.text.trim();
-                final prezzo = double.tryParse(
-                  prezzoControllerEdit.text.trim().replaceAll(',', '.'),
-                );
-                final quantita = double.tryParse(
-                  quantitaControllerEdit.text.trim().replaceAll(',', '.'),
-                );
-
-                if (nome.isEmpty || prezzo == null || prezzo < 0 ||
-                    quantita == null || quantita <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Inserisci descrizione, prezzo e quantità validi.'),
-                    ),
-                  );
-                  return;
-                }
-
-                Navigator.pop(dialogContext, {
-                  'nome': nome,
-                  'prezzo': prezzo,
-                  'quantita': quantita,
-                });
-              },
-              icon: const Icon(Icons.save_outlined),
-              label: const Text('SALVA'),
-            ),
-          ],
-        ),
-      );
-
-      if (risultato != null && mounted) {
-        setState(() => articoli[index] = risultato);
-      }
-    } finally {
-      nomeController.dispose();
-      prezzoControllerEdit.dispose();
-      quantitaControllerEdit.dispose();
+  Future<void> _impostaNumeroProgressivo() async {
+    final numero = await DatabaseHelper.instance.prossimoNumeroPreventivo();
+    if (mounted && numeroController.text.trim().isEmpty) {
+      setState(() => numeroController.text = numero);
     }
   }
 
@@ -2649,7 +2464,23 @@ Future<void> aggiungiAcconto() async {
     }
 
     setState(() {
-      articoli.add({'nome': nome, 'prezzo': prezzo, 'quantita': quantita});
+      final articolo = {
+        'nome': nome,
+        'prezzo': prezzo,
+        'quantita': quantita,
+      };
+
+      if (indiceArticoloInModifica != null &&
+          indiceArticoloInModifica! >= 0 &&
+          indiceArticoloInModifica! < articoli.length) {
+        // Modifica una riga già presente nel preventivo.
+        articoli[indiceArticoloInModifica!] = articolo;
+      } else {
+        // Inserimento di una nuova riga.
+        articoli.add(articolo);
+      }
+
+      indiceArticoloInModifica = null;
       prodottoController.clear();
       prezzoController.clear();
       quantitaController.text = '1';
@@ -2665,7 +2496,7 @@ Future<void> aggiungiAcconto() async {
     if (numero.isEmpty || cliente.isEmpty || articoli.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Inserisci il cliente e almeno un prodotto.'),
+          content: Text('Inserisci numero preventivo, cliente e almeno un prodotto.'),
         ),
       );
       return;
@@ -2675,17 +2506,16 @@ Future<void> aggiungiAcconto() async {
 
     try {
       final db = DatabaseHelper.instance;
-      final numero = await db.prossimoNumeroPreventivo();
 
-      // Se l'utente seleziona "Pagato", il preventivo viene considerato
-      // saldato indipendentemente dagli eventuali acconti inseriti.
-      // Gli acconti restano comunque salvati come storico.
+      // Se gli acconti coprono interamente il totale, il preventivo è PAGATO.
+      // Gli acconti restano salvati e visibili come storico dei pagamenti.
       final accontiDaSalvare = List<Map<String, dynamic>>.from(acconti);
       final totaleAcconti = accontiDaSalvare.fold<double>(
         0,
         (sum, a) => sum + ((a['importo'] as num?)?.toDouble() ?? 0),
       );
-      final pagatoEffettivo = pagato || (totale - totaleAcconti <= 0.005);
+      final pagatoFinale = pagato || (totale - totaleAcconti <= 0.005);
+      // Non cancellare gli acconti: devono rimanere nello storico e nel PDF.
 
       final id = await db.insertPreventivo(
         numero: numero,
@@ -2696,7 +2526,7 @@ Future<void> aggiungiAcconto() async {
         accettato: accettato,
         acconti: accontiDaSalvare,
         scontoPercent: scontoPercent,
-        pagato: pagatoEffettivo,
+        pagato: pagatoFinale,
       );
 
       final clienti = await db.getClienti();
@@ -2717,7 +2547,7 @@ Future<void> aggiungiAcconto() async {
         accettato: accettato,
         acconti: acconti,
         scontoPercent: scontoPercent,
-        pagato: pagatoEffettivo,
+        pagato: pagatoFinale,
       );
 
       if (mounted) {
@@ -2774,36 +2604,15 @@ Future<void> aggiungiAcconto() async {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Numero preventivo',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
             TextField(
               controller: numeroController,
-              textCapitalization: TextCapitalization.characters,
               decoration: const InputDecoration(
                 labelText: 'Numero preventivo',
                 prefixIcon: Icon(Icons.numbers),
-                hintText: 'PREV-2026-0001',
+                helperText: 'Numero modificabile anche dopo il salvataggio',
               ),
             ),
-            const SizedBox(height: 24),
-            const Text(
-              'Numero preventivo',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: numeroController,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'Numero preventivo',
-                hintText: 'Es. PREV-2026-0001',
-                prefixIcon: Icon(Icons.numbers),
-              ),
-            ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             const Text(
               'Dati Cliente',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -2832,6 +2641,33 @@ Future<void> aggiungiAcconto() async {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
+            if (indiceArticoloInModifica != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.edit_outlined, size: 18),
+                    const SizedBox(width: 6),
+                    const Expanded(
+                      child: Text(
+                        'Modifica prodotto, prezzo o quantità e premi ✓',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          indiceArticoloInModifica = null;
+                          prodottoController.clear();
+                          prezzoController.clear();
+                          quantitaController.text = '1';
+                        });
+                      },
+                      child: const Text('ANNULLA'),
+                    ),
+                  ],
+                ),
+              ),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -2881,7 +2717,11 @@ Future<void> aggiungiAcconto() async {
               child: OutlinedButton.icon(
                 onPressed: scegliServizio,
                 icon: const Icon(Icons.inventory_2_outlined),
-                label: const Text('SCEGLI DA PRODOTTI / SERVIZI'),
+                label: Text(
+                  indiceArticoloInModifica == null
+                      ? 'SCEGLI DA PRODOTTI / SERVIZI'
+                      : 'SOSTITUISCI CON UN PRODOTTO / SERVIZIO',
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -2898,6 +2738,19 @@ Future<void> aggiungiAcconto() async {
                     final quantita = (articoli[i]['quantita'] as num?)?.toDouble() ?? 1;
                     final riga = prezzo * quantita;
                     return ListTile(
+                      onTap: () {
+                        // Carica la riga nei campi sopra per poter modificare
+                        // descrizione/prodotto, prezzo e quantità.
+                        setState(() {
+                          indiceArticoloInModifica = i;
+                          prodottoController.text =
+                              articoli[i]['nome'].toString();
+                          prezzoController.text =
+                              prezzo.toStringAsFixed(2);
+                          quantitaController.text =
+                              quantita.toString().replaceAll('.', ',');
+                        });
+                      },
                       title: Text(articoli[i]['nome'].toString()),
                       subtitle: Text(
                         'Quantità: ${quantita.toStringAsFixed(2)}  •  Prezzo unitario: € ${prezzo.toStringAsFixed(2)}  •  Totale: € ${riga.toStringAsFixed(2)}',
@@ -2906,15 +2759,33 @@ Future<void> aggiungiAcconto() async {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            tooltip: 'Modifica prodotto / prezzo',
+                            tooltip: 'Modifica prodotto e prezzo',
                             icon: const Icon(Icons.edit_outlined),
-                            onPressed: () => modificaArticolo(i),
+                            onPressed: () {
+                              setState(() {
+                                indiceArticoloInModifica = i;
+                                prodottoController.text =
+                                    articoli[i]['nome'].toString();
+                                prezzoController.text =
+                                    prezzo.toStringAsFixed(2);
+                                quantitaController.text =
+                                    quantita.toString().replaceAll('.', ',');
+                              });
+                            },
                           ),
                           IconButton(
-                            tooltip: 'Elimina prodotto',
+                            tooltip: 'Elimina',
                             icon: const Icon(Icons.delete_outline),
                             onPressed: () {
-                              setState(() => articoli.removeAt(i));
+                              setState(() {
+                                if (indiceArticoloInModifica == i) {
+                                  indiceArticoloInModifica = null;
+                                  prodottoController.clear();
+                                  prezzoController.clear();
+                                  quantitaController.text = '1';
+                                }
+                                articoli.removeAt(i);
+                              });
                             },
                           ),
                         ],
@@ -2995,7 +2866,7 @@ Future<void> aggiungiAcconto() async {
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                         ),
                         OutlinedButton.icon(
-                          onPressed: pagato ? null : aggiungiAcconto,
+                          onPressed: aggiungiAcconto,
                           icon: const Icon(Icons.add),
                           label: const Text('AGGIUNGI'),
                         ),
@@ -3064,14 +2935,9 @@ Future<void> aggiungiAcconto() async {
                   'Pagato',
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
-                subtitle: const Text(
-                  'Considera il preventivo completamente pagato e bypassa il calcolo degli acconti.',
-                ),
-                secondary: const Icon(Icons.paid_outlined),
                 controlAffinity: ListTileControlAffinity.leading,
               ),
             ),
-            const SizedBox(height: 12),
             Card(
               child: CheckboxListTile(
                 value: accettato,
@@ -3549,8 +3415,8 @@ class ModificaPreventivoScreen extends StatefulWidget {
 
 class _ModificaPreventivoScreenState
     extends State<ModificaPreventivoScreen> {
-  late final TextEditingController clienteController;
   late final TextEditingController numeroController;
+  late final TextEditingController clienteController;
 
   final prodottoController = TextEditingController();
   final prezzoController = TextEditingController();
@@ -3564,6 +3430,10 @@ class _ModificaPreventivoScreenState
   late bool pagato;
 
   bool busy = false;
+
+  // Indice della riga che si sta modificando.
+  // null = inserimento di una nuova riga.
+  int? indiceArticoloInModifica;
 
   double get imponibile => articoli.fold<double>(
         0,
@@ -3791,12 +3661,14 @@ Future<void> aggiungiAcconto() async {
         0, (sum, a) => sum + ((a['importo'] as num?)?.toDouble() ?? 0));
   double get saldoResiduo => totale - totaleAcconti;
 
+  String get numero => numeroController.text.trim();
+
   @override
   void initState() {
     super.initState();
 
     numeroController = TextEditingController(
-      text: widget.preventivo['numero']?.toString() ?? '',
+      text: (widget.preventivo['numero'] ?? '').toString(),
     );
     clienteController = TextEditingController(
       text: widget.preventivo['cliente'],
@@ -3839,103 +3711,6 @@ Future<void> aggiungiAcconto() async {
     super.dispose();
   }
 
-  Future<void> modificaArticolo(int index) async {
-    final articolo = articoli[index];
-    final nomeController = TextEditingController(
-      text: articolo['nome']?.toString() ?? '',
-    );
-    final prezzoControllerEdit = TextEditingController(
-      text: ((articolo['prezzo'] as num?)?.toDouble() ?? 0).toStringAsFixed(2),
-    );
-    final quantitaControllerEdit = TextEditingController(
-      text: ((articolo['quantita'] as num?)?.toDouble() ?? 1).toString(),
-    );
-
-    try {
-      final risultato = await showDialog<Map<String, dynamic>>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Modifica prodotto / servizio'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nomeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Descrizione',
-                    prefixIcon: Icon(Icons.inventory_2_outlined),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: quantitaControllerEdit,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'Quantità',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: prezzoControllerEdit,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'Prezzo unitario €',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('ANNULLA'),
-            ),
-            FilledButton.icon(
-              onPressed: () {
-                final nome = nomeController.text.trim();
-                final prezzo = double.tryParse(
-                  prezzoControllerEdit.text.trim().replaceAll(',', '.'),
-                );
-                final quantita = double.tryParse(
-                  quantitaControllerEdit.text.trim().replaceAll(',', '.'),
-                );
-
-                if (nome.isEmpty || prezzo == null || prezzo < 0 ||
-                    quantita == null || quantita <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Inserisci descrizione, prezzo e quantità validi.'),
-                    ),
-                  );
-                  return;
-                }
-
-                Navigator.pop(dialogContext, {
-                  'nome': nome,
-                  'prezzo': prezzo,
-                  'quantita': quantita,
-                });
-              },
-              icon: const Icon(Icons.save_outlined),
-              label: const Text('SALVA'),
-            ),
-          ],
-        ),
-      );
-
-      if (risultato != null && mounted) {
-        setState(() => articoli[index] = risultato);
-      }
-    } finally {
-      nomeController.dispose();
-      prezzoControllerEdit.dispose();
-      quantitaControllerEdit.dispose();
-    }
-  }
-
-
-
   void aggiungi() {
     final nome = prodottoController.text.trim();
     final prezzo = double.tryParse(
@@ -3955,7 +3730,21 @@ Future<void> aggiungiAcconto() async {
     }
 
     setState(() {
-      articoli.add({'nome': nome, 'prezzo': prezzo, 'quantita': quantita});
+      final articolo = {
+        'nome': nome,
+        'prezzo': prezzo,
+        'quantita': quantita,
+      };
+
+      if (indiceArticoloInModifica != null &&
+          indiceArticoloInModifica! >= 0 &&
+          indiceArticoloInModifica! < articoli.length) {
+        articoli[indiceArticoloInModifica!] = articolo;
+      } else {
+        articoli.add(articolo);
+      }
+
+      indiceArticoloInModifica = null;
       prodottoController.clear();
       prezzoController.clear();
       quantitaController.text = '1';
@@ -3965,10 +3754,9 @@ Future<void> aggiungiAcconto() async {
   Future<void> salva() async {
     if (busy) return;
 
-    final numero = numeroController.text.trim();
     final cliente = clienteController.text.trim();
 
-    if (numero.isEmpty || cliente.isEmpty || articoli.isEmpty) {
+    if (cliente.isEmpty || articoli.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Inserisci il cliente e almeno un prodotto.'),
@@ -3984,14 +3772,12 @@ Future<void> aggiungiAcconto() async {
       final preventivoId =
           (widget.preventivo['id'] as num).toInt();
 
-      // "Pagato" bypassa il calcolo degli acconti: il preventivo viene
-      // considerato saldato anche se il totale degli acconti è inferiore.
-      // Gli eventuali acconti restano comunque nello storico.
+      // Se il saldo è stato azzerato, mantieni gli acconti come storico.
       final totaleAcconti = acconti.fold<double>(
         0,
         (sum, a) => sum + ((a['importo'] as num?)?.toDouble() ?? 0),
       );
-      final pagatoEffettivo = pagato || (totale - totaleAcconti <= 0.005);
+      final pagatoFinale = pagato || (totale - totaleAcconti <= 0.005);
       final updated = await db.updatePreventivo(
         id: preventivoId,
         numero: numero,
@@ -4002,7 +3788,7 @@ Future<void> aggiungiAcconto() async {
         accettato: accettato,
         acconti: acconti,
         scontoPercent: scontoPercent,
-        pagato: pagatoEffettivo,
+        pagato: pagatoFinale,
       );
 
       if (updated == 0) {
@@ -4017,7 +3803,7 @@ Future<void> aggiungiAcconto() async {
         accettato: accettato,
         acconti: acconti,
         scontoPercent: scontoPercent,
-        pagato: pagatoEffettivo,
+        pagato: pagatoFinale,
       );
 
       if (mounted) {
@@ -4062,7 +3848,7 @@ Future<void> aggiungiAcconto() async {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Modifica preventivo'),
+        title: Text('Modifica preventivo'),
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
       ),
@@ -4071,6 +3857,15 @@ Future<void> aggiungiAcconto() async {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            TextField(
+              controller: numeroController,
+              decoration: const InputDecoration(
+                labelText: 'Numero preventivo',
+                prefixIcon: Icon(Icons.numbers),
+                helperText: 'Numero modificabile anche dopo il salvataggio',
+              ),
+            ),
+            const SizedBox(height: 16),
             const Text(
               'Dati Cliente',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -4136,8 +3931,15 @@ Future<void> aggiungiAcconto() async {
                 ),
                 const SizedBox(width: 8),
                 IconButton.filled(
+                  tooltip: indiceArticoloInModifica == null
+                      ? 'Aggiungi prodotto'
+                      : 'Salva modifica',
                   onPressed: aggiungi,
-                  icon: const Icon(Icons.add),
+                  icon: Icon(
+                    indiceArticoloInModifica == null
+                        ? Icons.add
+                        : Icons.check,
+                  ),
                 ),
               ],
             ),
@@ -4168,19 +3970,41 @@ Future<void> aggiungiAcconto() async {
                       subtitle: Text(
                         'Quantità: ${quantita.toStringAsFixed(2)}  •  Prezzo unitario: € ${prezzo.toStringAsFixed(2)}  •  Totale: € ${riga.toStringAsFixed(2)}',
                       ),
+                      onTap: () {
+                        setState(() {
+                          indiceArticoloInModifica = i;
+                          prodottoController.text = articoli[i]['nome'].toString();
+                          prezzoController.text = prezzo.toStringAsFixed(2);
+                          quantitaController.text = quantita.toString().replaceAll('.', ',');
+                        });
+                      },
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            tooltip: 'Modifica prodotto / servizio',
+                            tooltip: 'Modifica prodotto, prezzo e quantità',
                             icon: const Icon(Icons.edit_outlined),
-                            onPressed: () => modificaArticolo(i),
+                            onPressed: () {
+                              setState(() {
+                                indiceArticoloInModifica = i;
+                                prodottoController.text = articoli[i]['nome'].toString();
+                                prezzoController.text = prezzo.toStringAsFixed(2);
+                                quantitaController.text = quantita.toString().replaceAll('.', ',');
+                              });
+                            },
                           ),
                           IconButton(
-                            tooltip: 'Elimina',
                             icon: const Icon(Icons.delete_outline),
                             onPressed: () {
-                              setState(() => articoli.removeAt(i));
+                              setState(() {
+                                if (indiceArticoloInModifica == i) {
+                                  indiceArticoloInModifica = null;
+                                  prodottoController.clear();
+                                  prezzoController.clear();
+                                  quantitaController.text = '1';
+                                }
+                                articoli.removeAt(i);
+                              });
                             },
                           ),
                         ],
@@ -4258,7 +4082,7 @@ Future<void> aggiungiAcconto() async {
                       children: [
                         const Text('Acconti', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                         OutlinedButton.icon(
-                          onPressed: pagato ? null : aggiungiAcconto,
+                          onPressed: aggiungiAcconto,
                           icon: const Icon(Icons.add),
                           label: const Text('AGGIUNGI'),
                         ),
@@ -4317,8 +4141,7 @@ Future<void> aggiungiAcconto() async {
               ),
             ),
             const SizedBox(height: 12),
-            // Questo controllo deve restare visibile anche sui vecchi preventivi
-            // già generati: lo stato viene letto dal campo pagato del database.
+            const SizedBox(height: 12),
             Card(
               child: CheckboxListTile(
                 value: pagato,
@@ -4327,14 +4150,9 @@ Future<void> aggiungiAcconto() async {
                   'Pagato',
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
-                subtitle: const Text(
-                  'Considera il preventivo completamente pagato e bypassa il calcolo degli acconti.',
-                ),
-                secondary: const Icon(Icons.paid_outlined),
                 controlAffinity: ListTileControlAffinity.leading,
               ),
             ),
-            const SizedBox(height: 12),
             Card(
               child: CheckboxListTile(
                 value: accettato,
@@ -5263,7 +5081,7 @@ class _BackupScreenState extends State<BackupScreen> {
         builder: (context) => AlertDialog(
           title: const Text('Importa backup'),
           content: const Text(
-            'L’importazione aggiungerà i dati del backup a quelli già presenti. I dati esistenti non verranno cancellati e gli elementi già presenti verranno ignorati per evitare duplicati. Continuare?',
+            'L’importazione aggiornerà i dati presenti nel backup e manterrà quelli già presenti sul dispositivo. Continuare?',
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('ANNULLA')),
@@ -5330,6 +5148,7 @@ class _BackupScreenState extends State<BackupScreen> {
           ],
           if (lastMessage != null) ...[
             const SizedBox(height: 20),
+            const SizedBox(height: 16),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(14),
@@ -5339,7 +5158,7 @@ class _BackupScreenState extends State<BackupScreen> {
           ],
           const SizedBox(height: 18),
           const Text(
-            'Il backup contiene clienti, prodotti/servizi, preventivi, fatture e acconti. L’importazione aggiunge i dati senza cancellare quelli presenti e ignora i duplicati.',
+            'Il backup contiene clienti, prodotti/servizi, preventivi e acconti. L’importazione è incrementale: aggiorna i dati con lo stesso ID e aggiunge quelli nuovi, senza cancellare i dati già presenti.',
             style: TextStyle(fontSize: 13),
           ),
         ],
