@@ -3958,10 +3958,16 @@ Future<void> aggiungiAcconto() async {
 
 
 
-  void aggiungi() {
-    FocusScope.of(context).unfocus();
-
+  Future<void> aggiungi() async {
+    // Se il campo prodotto è vuoto, il + apre direttamente il listino.
+    // In questo modo il pulsante + è sempre utilizzabile anche per aggiungere
+    // un nuovo prodotto/servizio a un preventivo già esistente.
     final nome = prodottoController.text.trim();
+    if (nome.isEmpty) {
+      await scegliServizio();
+      return;
+    }
+
     final prezzo = double.tryParse(
       prezzoController.text.trim().replaceAll(',', '.'),
     );
@@ -3969,18 +3975,18 @@ Future<void> aggiungiAcconto() async {
       quantitaController.text.trim().replaceAll(',', '.'),
     );
 
-    if (nome.isEmpty || prezzo == null || prezzo < 0 ||
-        quantita == null || quantita <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Inserisci descrizione, prezzo e quantità validi.'),
-        ),
-      );
+    if (prezzo == null || prezzo < 0 || quantita == null || quantita <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Inserisci descrizione, prezzo e quantità validi.'),
+          ),
+        );
+      }
       return;
     }
 
-    // Aggiunge SEMPRE una nuova riga senza sostituire gli articoli
-    // già presenti nel preventivo in modifica.
+    if (!mounted) return;
     setState(() {
       articoli.add({
         'nome': nome,
@@ -4167,7 +4173,6 @@ Future<void> aggiungiAcconto() async {
                 ),
                 const SizedBox(width: 8),
                 IconButton.filled(
-                  tooltip: 'Aggiungi prodotto / servizio',
                   onPressed: () => aggiungi(),
                   icon: const Icon(Icons.add),
                 ),
