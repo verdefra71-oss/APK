@@ -2904,7 +2904,7 @@ Future<void> aggiungiAcconto() async {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: aggiungi,
+                onPressed: aggiungiProdotto,
                 icon: const Icon(Icons.add_circle_outline),
                 label: const Text('AGGIUNGI VOCE AL PREVENTIVO'),
               ),
