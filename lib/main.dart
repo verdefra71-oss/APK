@@ -18,7 +18,6 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:syncfusion_flutter_pdf/pdf.dart' as sf;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -4099,46 +4098,52 @@ Future<void> aggiungiAcconto() async {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  flex: 2,
-                  child: TextField(
-                    controller: prodottoController,
-                    decoration: const InputDecoration(
-                      labelText: 'Descrizione',
-                    ),
+                TextField(
+                  controller: prodottoController,
+                  decoration: const InputDecoration(
+                    labelText: 'Descrizione',
+                    prefixIcon: Icon(Icons.inventory_2_outlined),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: quantitaController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: quantitaController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Quantità',
+                        ),
+                      ),
                     ),
-                    decoration: const InputDecoration(
-                      labelText: 'Quantità',
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: prezzoController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Prezzo unitario €',
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: prezzoController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Prezzo unitario €',
-                    ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: aggiungi,
+                    icon: const Icon(Icons.add),
+                    label: const Text('AGGIUNGI PRODOTTO / SERVIZIO'),
                   ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  onPressed: aggiungi,
-                  icon: const Icon(Icons.add),
                 ),
               ],
             ),
@@ -4927,249 +4932,6 @@ class _ProdottiScreenState extends State<ProdottiScreen> {
     prezzo.dispose();
   }
 
-  Future<void> _importaDaPdf() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
-        withData: true,
-      );
-      if (result == null) return;
-
-      final picked = result.files.single;
-      final bytes = picked.bytes ?? await File(picked.path!).readAsBytes();
-      final document = sf.PdfDocument(inputBytes: bytes);
-      final text = sf.PdfTextExtractor(document).extractText();
-      document.dispose();
-
-      final righe = _estraiProdottiDaTestoPdf(text);
-      if (righe.isEmpty) {
-        if (!mounted) return;
-        await showDialog<void>(
-          context: context,
-          builder: (_) => const AlertDialog(
-            title: Text('Nessun prodotto trovato'),
-            content: Text(
-              'Non sono riuscito a riconoscere automaticamente righe con nome prodotto e prezzo. Il PDF potrebbe essere una scansione immagine oppure avere un formato diverso.',
-            ),
-          ),
-        );
-        return;
-      }
-
-      final importati = await _mostraAnteprimaImportazione(righe);
-      if (importati == null || importati.isEmpty) return;
-
-      final esistenti = await DatabaseHelper.instance.getProdotti();
-      final nomi = esistenti
-          .map((p) => _normalizzaNome(p['nome']?.toString() ?? ''))
-          .where((n) => n.isNotEmpty)
-          .toSet();
-      var aggiunti = 0;
-      var duplicati = 0;
-
-      for (final item in importati) {
-        final nome = item['nome']!.trim();
-        final prezzo = _parsePrezzoPdf(item['prezzo']!);
-        final key = _normalizzaNome(nome);
-        if (nome.isEmpty || prezzo == null || prezzo < 0 || key.isEmpty) continue;
-        if (nomi.contains(key)) {
-          duplicati++;
-          continue;
-        }
-        await DatabaseHelper.instance.insertProdotto(nome: nome, prezzo: prezzo);
-        nomi.add(key);
-        aggiunti++;
-      }
-
-      await _carica();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Importati $aggiunti prodotti${duplicati > 0 ? ' • $duplicati duplicati ignorati' : ''}.',
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore durante l’importazione PDF: $e')),
-      );
-    }
-  }
-
-  double? _parsePrezzoPdf(String value) {
-    var v = value.trim().replaceAll('€', '').replaceAll('EUR', '').replaceAll('euro', '').trim();
-    if (v.contains(',') && v.contains('.')) {
-      // Formato italiano: 1.250,50
-      if (v.lastIndexOf(',') > v.lastIndexOf('.')) {
-        v = v.replaceAll('.', '').replaceAll(',', '.');
-      } else {
-        // Formato internazionale: 1,250.50
-        v = v.replaceAll(',', '');
-      }
-    } else if (v.contains(',')) {
-      v = v.replaceAll(',', '.');
-    }
-    return double.tryParse(v);
-  }
-
-  String _normalizzaNome(String value) {
-    return value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
-  }
-
-  List<Map<String, String>> _estraiProdottiDaTestoPdf(String text) {
-    final risultati = <Map<String, String>>[];
-    final visti = <String>{};
-    final righe = text
-        .split(RegExp(r'[\r\n]+'))
-        .map((r) => r.replaceAll(RegExp(r'\s+'), ' ').trim())
-        .where((r) => r.isNotEmpty)
-        .toList();
-
-    // Riconosce righe del tipo "Prodotto 12,50 €", "Prodotto € 12,50" e "Prodotto 12.50 EUR".
-    final prezzoRe = RegExp(
-      r'^(.+?)\s+(?:€\s*)?(-?\d{1,3}(?:[.\,]\d{3})*(?:[.\,]\d{1,2})?|\d+(?:[\.,]\d{1,2})?)\s*(?:€|EUR|euro)?$',
-      caseSensitive: false,
-    );
-
-    for (var riga in righe) {
-      var nome = '';
-      var prezzo = '';
-      final match = prezzoRe.firstMatch(riga);
-      if (match == null) continue;
-      nome = match.group(1)!.trim();
-      prezzo = match.group(2)!;
-
-      nome = nome
-          .replaceFirst(RegExp(r'^[-•*]+\s*'), '')
-          .replaceFirst(RegExp(r'^\d+[.)]\s*'), '')
-          .trim();
-      if (nome.length < 2 || prezzo.isEmpty) continue;
-
-      final valore = _parsePrezzoPdf(prezzo);
-      if (valore == null || valore < 0) continue;
-
-      // Ignora righe che sono chiaramente totali, subtotali o intestazioni.
-      final basso = nome.toLowerCase();
-      if (RegExp(r'^(totale|subtotale|imponibile|iva|sconto|quantit[aà]|prezzo|totale imponibile)$').hasMatch(basso)) continue;
-
-      final key = _normalizzaNome(nome);
-      if (visti.contains(key)) continue;
-      visti.add(key);
-      risultati.add({'nome': nome, 'prezzo': valore.toStringAsFixed(2)});
-    }
-
-    return risultati;
-  }
-
-  Future<List<Map<String, String>>?> _mostraAnteprimaImportazione(
-    List<Map<String, String>> righe,
-  ) async {
-    final controllers = righe
-        .map(
-          (r) => {
-            'nome': TextEditingController(text: r['nome'] ?? ''),
-            'prezzo': TextEditingController(text: r['prezzo'] ?? ''),
-          },
-        )
-        .toList();
-    final selezionati = List<bool>.filled(righe.length, true);
-
-    final conferma = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text('Prodotti trovati (${righe.length})'),
-          content: SizedBox(
-            width: 700,
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Padding(
-                      padding: EdgeInsets.only(bottom: 10),
-                      child: Text(
-                        'Controlla i dati prima di importarli. Le righe deselezionate non verranno salvate.',
-                      ),
-                    ),
-                  ),
-                  ...List.generate(righe.length, (i) {
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: Row(
-                          children: [
-                            Checkbox(
-                              value: selezionati[i],
-                              onChanged: (v) => setDialogState(
-                                () => selezionati[i] = v ?? false,
-                              ),
-                            ),
-                            Expanded(
-                              flex: 3,
-                              child: TextField(
-                                controller: controllers[i]['nome'],
-                                decoration: const InputDecoration(
-                                  labelText: 'Prodotto / servizio',
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            SizedBox(
-                              width: 120,
-                              child: TextField(
-                                controller: controllers[i]['prezzo'],
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                decoration: const InputDecoration(
-                                  labelText: 'Prezzo €',
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('ANNULLA'),
-            ),
-            FilledButton.icon(
-              onPressed: () => Navigator.pop(ctx, true),
-              icon: const Icon(Icons.file_download),
-              label: const Text('IMPORTA SELEZIONATI'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    final output = <Map<String, String>>[];
-    if (conferma == true) {
-      for (var i = 0; i < controllers.length; i++) {
-        if (!selezionati[i]) continue;
-        output.add({
-          'nome': controllers[i]['nome']!.text,
-          'prezzo': controllers[i]['prezzo']!.text,
-        });
-      }
-    }
-    for (final c in controllers) {
-      c['nome']!.dispose();
-      c['prezzo']!.dispose();
-    }
-    return conferma == true ? output : null;
-  }
-
   Future<void> _elimina(Map<String, dynamic> prodotto) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -5211,11 +4973,6 @@ class _ProdottiScreenState extends State<ProdottiScreen> {
         title: const Text('Prodotti / Servizi'),
         actions: [
           IconButton(
-            tooltip: 'Importa prodotti da PDF',
-            onPressed: _importaDaPdf,
-            icon: const Icon(Icons.picture_as_pdf_outlined),
-          ),
-          IconButton(
             onPressed: _carica,
             icon: const Icon(Icons.refresh),
           ),
@@ -5245,12 +5002,6 @@ class _ProdottiScreenState extends State<ProdottiScreen> {
                               icon: const Icon(Icons.clear),
                             ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: _importaDaPdf,
-                    icon: const Icon(Icons.picture_as_pdf_outlined),
-                    label: const Text('IMPORTA PRODOTTI DA PDF'),
                   ),
                   const SizedBox(height: 14),
                   if (q.isEmpty && filtrati.isNotEmpty)
