@@ -3620,14 +3620,18 @@ class _ModificaPreventivoScreenState
   }
 
   Future<void> scegliServizio() async {
+    // IMPORTANTE: questa funzione è usata anche per i vecchi preventivi.
+    // La selezione dall'anagrafica deve SEMPRE aggiungere una nuova voce,
+    // senza sostituire o modificare quelle già presenti.
     final prodotto = await selezionaProdotto(context);
     if (prodotto == null || !mounted) return;
 
-    // In modifica preventivo la scelta di un prodotto deve aggiungere
-    // immediatamente una nuova voce al preventivo. Le voci già presenti
-    // non vengono mai sostituite.
     final nome = (prodotto['nome'] ?? '').toString().trim();
-    final prezzo = (prodotto['prezzo'] as num?)?.toDouble();
+    final prezzoRaw = prodotto['prezzo'];
+    final prezzo = prezzoRaw is num
+        ? prezzoRaw.toDouble()
+        : double.tryParse(prezzoRaw?.toString().replaceAll(',', '.') ?? '');
+
     if (nome.isEmpty || prezzo == null || prezzo < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Prodotto non valido.')),
@@ -3635,16 +3639,24 @@ class _ModificaPreventivoScreenState
       return;
     }
 
+    final nuovaVoce = <String, dynamic>{
+      'nome': nome,
+      'prezzo': prezzo,
+      'quantita': 1.0,
+    };
+
     setState(() {
-      articoli.add({
-        'nome': nome,
-        'prezzo': prezzo,
-        'quantita': 1.0,
-      });
+      // add(), MAI assegnazione di una nuova lista: conserva tutte le voci
+      // del vecchio preventivo e aggiunge quella appena selezionata.
+      articoli.add(nuovaVoce);
       prodottoController.clear();
       prezzoController.clear();
       quantitaController.text = '1';
     });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Aggiunto: $nome')),
+    );
   }
 
   List<Map<String, dynamic>> _parseAcconti(dynamic rawValue) {
