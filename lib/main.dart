@@ -3596,36 +3596,14 @@ class _ModificaPreventivoScreenState
 
   Future<void> scegliServizio() async {
     final prodotto = await selezionaProdotto(context);
-    if (prodotto == null || !mounted) return;
-
-    final nome = (prodotto['nome'] ?? '').toString().trim();
-    final prezzo = (prodotto['prezzo'] as num?)?.toDouble() ?? 0;
-
-    if (nome.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Prodotto / servizio non valido.')),
-      );
-      return;
-    }
-
-    // In MODIFICA PREVENTIVO la selezione dal listino deve aggiungere
-    // immediatamente una nuova riga agli articoli. Prima venivano compilati
-    // soltanto i campi e l'utente doveva premere nuovamente +.
-    setState(() {
-      articoli.add({
-        'nome': nome,
-        'prezzo': prezzo,
-        'quantita': 1.0,
+    if (prodotto != null && mounted) {
+      setState(() {
+        prodottoController.text = prodotto['nome'].toString();
+        prezzoController.text =
+            (prodotto['prezzo'] as num).toDouble().toStringAsFixed(2);
+        quantitaController.text = '1';
       });
-
-      prodottoController.clear();
-      prezzoController.clear();
-      quantitaController.text = '1';
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$nome aggiunto al preventivo.')),
-    );
+    }
   }
 
   List<Map<String, dynamic>> _parseAcconti(dynamic rawValue) {
@@ -3958,16 +3936,8 @@ Future<void> aggiungiAcconto() async {
 
 
 
-  Future<void> aggiungi() async {
-    // Se il campo prodotto è vuoto, il + apre direttamente il listino.
-    // In questo modo il pulsante + è sempre utilizzabile anche per aggiungere
-    // un nuovo prodotto/servizio a un preventivo già esistente.
+  void aggiungi() {
     final nome = prodottoController.text.trim();
-    if (nome.isEmpty) {
-      await scegliServizio();
-      return;
-    }
-
     final prezzo = double.tryParse(
       prezzoController.text.trim().replaceAll(',', '.'),
     );
@@ -3975,24 +3945,17 @@ Future<void> aggiungiAcconto() async {
       quantitaController.text.trim().replaceAll(',', '.'),
     );
 
-    if (prezzo == null || prezzo < 0 || quantita == null || quantita <= 0) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Inserisci descrizione, prezzo e quantità validi.'),
-          ),
-        );
-      }
+    if (nome.isEmpty || prezzo == null || prezzo < 0 || quantita == null || quantita <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Inserisci descrizione, prezzo e quantità validi.'),
+        ),
+      );
       return;
     }
 
-    if (!mounted) return;
     setState(() {
-      articoli.add({
-        'nome': nome,
-        'prezzo': prezzo,
-        'quantita': quantita,
-      });
+      articoli.add({'nome': nome, 'prezzo': prezzo, 'quantita': quantita});
       prodottoController.clear();
       prezzoController.clear();
       quantitaController.text = '1';
@@ -4173,7 +4136,7 @@ Future<void> aggiungiAcconto() async {
                 ),
                 const SizedBox(width: 8),
                 IconButton.filled(
-                  onPressed: () => aggiungi(),
+                  onPressed: aggiungi,
                   icon: const Icon(Icons.add),
                 ),
               ],
@@ -4185,6 +4148,15 @@ Future<void> aggiungiAcconto() async {
                 onPressed: scegliServizio,
                 icon: const Icon(Icons.inventory_2_outlined),
                 label: const Text('SCEGLI DA PRODOTTI / SERVIZI'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: busy ? null : aggiungi,
+                icon: const Icon(Icons.add),
+                label: const Text('AGGIUNGI PRODOTTO / SERVIZIO'),
               ),
             ),
             const SizedBox(height: 12),
