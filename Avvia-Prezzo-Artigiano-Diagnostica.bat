@@ -12,6 +12,6 @@ set ERR=%ERRORLEVEL%
 echo. >> startup-log.txt
 echo Exit code: %ERR% >> startup-log.txt
 echo. >> startup-log.txt
-echo If the application closes immediately, send this startup-log.txt to support.
+echo If the application closes immediately, send this startup-log.txt.
 pause
 exit /b %ERR%
