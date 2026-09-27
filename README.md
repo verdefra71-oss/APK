@@ -1,31 +1,24 @@
-# Preventivi
+# Prezzo Artigiano
 
-App Flutter per gestione di clienti, prodotti/servizi, preventivi, IVA, acconti.
+App Flutter per il calcolo del costo reale e del prezzo consigliato dei prodotti artigianali.
 
-## Build APK su GitHub Actions
+## GitHub Actions
 
-1. Carica il contenuto di questo progetto nel repository.
-2. Vai in **Actions**.
-3. Seleziona **Build Preventivi APK**.
-4. Premi **Run workflow**.
-5. Al termine apri l'artifact **Preventivi-APK** e scarica `app-release.apk`.
+Il workflow `.github/workflows/build.yml` esegue **simultaneamente** due job indipendenti:
 
-## Build iOS firmata e upload TestFlight/App Store
+- **Android APK** → `prezzo-artigiano-android-apk`
+- **Windows** → `prezzo-artigiano-windows`
 
-Il workflow `.github/workflows/build-ios.yml` crea una build iOS firmata e, se i secret sono configurati, carica automaticamente l'IPA su App Store Connect.
+Parte automaticamente a ogni `push` su `main` o `master`, oppure manualmente da **GitHub → Actions → Build Android APK + Windows → Run workflow**.
 
-### Secret GitHub da creare
+I due job sono paralleli: se uno dei due fallisce, l'altro può comunque completare la propria build.
 
-Repository → Settings → Secrets and variables → Actions → New repository secret:
+## Come caricarlo su GitHub
 
-- `IOS_BUNDLE_IDENTIFIER` — Bundle ID registrato su Apple Developer, ad esempio `it.tuodominio.preventivi`
-- `APPLE_TEAM_ID` — Team ID Apple Developer
-- `BUILD_CERTIFICATE_BASE64` — certificato iOS Distribution in formato `.p12`, codificato Base64
-- `P12_PASSWORD` — password del file `.p12`
-- `BUILD_PROVISION_PROFILE_BASE64` — provisioning profile App Store in Base64
-- `KEYCHAIN_PASSWORD` — password casuale per il keychain temporaneo di GitHub Actions
-- `APP_STORE_CONNECT_KEY_ID` — Key ID della API Key App Store Connect
-- `APP_STORE_CONNECT_ISSUER_ID` — Issuer ID della API Key App Store Connect
-- `APP_STORE_CONNECT_API_KEY_BASE64` — file `AuthKey_XXXXXXXXXX.p8` codificato Base64
-
-Il Bundle ID deve corrispondere esattamente al provisioning profile e all'app registrata in App Store Connect. Apple richiede un Apple Developer Program per distribuire l'app; il workflow usa un runner macOS e il certificato/provisioning profile per la firma. Dopo l'upload, il build appare in App Store Connect e può essere distribuito tramite TestFlight o sottoposto all'App Store.
+1. Crea un nuovo repository GitHub.
+2. Estrai questo progetto.
+3. Carica tutti i file nel repository.
+4. Fai `push` sul branch `main` oppure `master`.
+5. Apri **Actions**.
+6. Attendi il completamento dei due job.
+7. Scarica gli Artifact `prezzo-artigiano-android-apk` e `prezzo-artigiano-windows`.
