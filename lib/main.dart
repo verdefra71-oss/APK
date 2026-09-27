@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -41,8 +40,8 @@ class AppData {
   String name=''; String owner=''; String address=''; String vat=''; String fiscal=''; String phone=''; String email=''; String website=''; String iban=''; Uint8List? logo;
   double fixedMonthly=0, hoursMonthly=160, hourlyValue=30, margin=20;
   List<Product> products=[]; List<Quote> quotes=[];
-  Future<void> load() async { final p=await SharedPreferences.getInstance(); name=p.getString('name')??''; logo = p.getString('logo')!=null ? base64Decode(p.getString('logo')!) : null; owner=p.getString('owner')??''; address=p.getString('address')??''; vat=p.getString('vat')??''; fiscal=p.getString('fiscal')??''; phone=p.getString('phone')??''; email=p.getString('email')??''; website=p.getString('website')??''; iban=p.getString('iban')??''; fixedMonthly=p.getDouble('fixed')??0; hoursMonthly=p.getDouble('hours')??160; hourlyValue=p.getDouble('hourly')??30; margin=p.getDouble('margin')??20; final s=p.getString('products'); if(s!=null) products=(jsonDecode(s) as List).map((e)=>Product.fromJson(e)).toList(); }
-  Future<void> save() async { final p=await SharedPreferences.getInstance(); await p.setString('name',name); if (logo != null) await p.setString('logo', base64Encode(logo!)); else await p.remove('logo'); await p.setString('owner',owner); await p.setString('address',address); await p.setString('vat',vat); await p.setString('fiscal',fiscal); await p.setString('phone',phone); await p.setString('email',email); await p.setString('website',website); await p.setString('iban',iban); await p.setDouble('fixed',fixedMonthly); await p.setDouble('hours',hoursMonthly); await p.setDouble('hourly',hourlyValue); await p.setDouble('margin',margin); await p.setString('products',jsonEncode(products.map((e)=>e.toJson()).toList())); }
+  Future<void> load() async { final p=await SharedPreferences.getInstance(); name=p.getString('name')??''; logo = p.getString('logo')!=null ? base64Decode(p.getString('logo')!) : null; owner=p.getString('owner')??''; address=p.getString('address')??''; vat=p.getString('vat')??''; fiscal=p.getString('fiscal')??''; phone=p.getString('phone')??''; email=p.getString('email')??''; website=p.getString('website')??''; iban=p.getString('iban')??''; fixedMonthly=p.getDouble('fixed')??0; hoursMonthly=p.getDouble('hours')??160; hourlyValue=p.getDouble('hourly')??30; margin=p.getDouble('margin')??20; final s=p.getString('products'); if (s!=null) products=(jsonDecode(s) as List).map((e)=>Product.fromJson(e)) { .toList(); } }
+  Future<void> save() async { final p=await SharedPreferences.getInstance(); await p.setString('name',name); if (logo != null) await p.setString('logo', base64Encode(logo!) { ); } else await p.remove('logo'); await p.setString('owner',owner); await p.setString('address',address); await p.setString('vat',vat); await p.setString('fiscal',fiscal); await p.setString('phone',phone); await p.setString('email',email); await p.setString('website',website); await p.setString('iban',iban); await p.setDouble('fixed',fixedMonthly); await p.setDouble('hours',hoursMonthly); await p.setDouble('hourly',hourlyValue); await p.setDouble('margin',margin); await p.setString('products',jsonEncode(products.map((e)=>e.toJson()).toList())); }
   double get fixedPerHour=>hoursMonthly<=0?0:fixedMonthly/hoursMonthly;
 }
 class Product { String name,desc; double materials,hours,extra,artistic; Product({required this.name,required this.desc,required this.materials,required this.hours,required this.extra,required this.artistic}); double cost(AppData d)=>materials+hours*(d.hourlyValue+d.fixedPerHour)+extra; double artisticPct()=>artistic*0.10; double recommended(AppData d)=>cost(d)*(1+artisticPct())*(1+d.margin/100); Map<String,dynamic> toJson()=>{'name':name,'desc':desc,'materials':materials,'hours':hours,'extra':extra,'artistic':artistic}; factory Product.fromJson(Map<String,dynamic> j)=>Product(name:j['name'],desc:j['desc'],materials:(j['materials'] as num).toDouble(),hours:(j['hours'] as num).toDouble(),extra:(j['extra'] as num).toDouble(),artistic:(j['artistic'] as num).toDouble()); }
@@ -107,7 +106,7 @@ class ProductsPage extends StatefulWidget {
 class _ProductsPageState extends State<ProductsPage> {
   @override
   Widget build(BuildContext c) {
-    if (widget.data.products.isEmpty) return const Center(child: Text('Nessun prodotto. Premi “Nuovo prodotto”.'));
+    if (widget.data.products.isEmpty) return const Center(child: Text('Nessun prodotto. Premi “Nuovo prodotto”.') { ); }
     return ListView.builder(
       padding: const EdgeInsets.all(12),
       itemCount: widget.data.products.length,
@@ -194,7 +193,7 @@ class _ProductFormState extends State<ProductForm> {
               final p = Product(name: n.text.trim().isEmpty ? 'Nuovo prodotto' : n.text.trim(), desc: d.text.trim(), materials: numValue(m), hours: numValue(h), extra: numValue(e), artistic: artistic);
               if (widget.index != null) { widget.data.products[widget.index!] = p; } else { widget.data.products.add(p); }
               await widget.data.save();
-              if (mounted) Navigator.pop(c);
+              if (mounted) { Navigator.pop(c); }
             },
             icon: const Icon(Icons.save), label: const Text('Salva prodotto'),
           ),
@@ -206,7 +205,7 @@ class _ProductFormState extends State<ProductForm> {
 
 class QuotesPage extends StatelessWidget { final AppData data; const QuotesPage({super.key,required this.data}); @override Widget build(BuildContext c)=>ListView(padding:const EdgeInsets.all(16),children:[Card(child:ListTile(leading:const Icon(Icons.picture_as_pdf),title:const Text('Crea un preventivo'),subtitle:const Text('Seleziona un prodotto e genera un PDF con i dati della tua attività.'),trailing:const Icon(Icons.chevron_right),onTap:()=>showDialog(context:c,builder:(_)=>QuoteDialog(data:data))))]); }
 class QuoteDialog extends StatefulWidget { final AppData data; const QuoteDialog({super.key,required this.data}); @override State<QuoteDialog> createState()=>_QuoteDialogState(); }
-class _QuoteDialogState extends State<QuoteDialog>{final client=TextEditingController();int? selected;final price=TextEditingController();@override Widget build(BuildContext c)=>AlertDialog(title:const Text('Nuovo preventivo'),content:SizedBox(width:500,child:ListView(shrinkWrap:true,children:[TextField(controller:client,decoration:const InputDecoration(labelText:'Cliente')),const SizedBox(height:10),DropdownButtonFormField<int>(value:selected,decoration:const InputDecoration(labelText:'Prodotto'),items:List.generate(widget.data.products.length,(i)=>DropdownMenuItem(value:i,child:Text(widget.data.products[i].name))),onChanged:(v){setState(()=>selected=v);if(v!=null)price.text=widget.data.products[v].recommended(widget.data).toStringAsFixed(2);}),const SizedBox(height:10),TextField(controller:price,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Prezzo preventivo (€)'))])),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Annulla')),FilledButton(onPressed:selected==null?null:()async{final p=widget.data.products[selected!];final q=Quote(client:client.text,product:p,price:double.tryParse(price.text.replaceAll(',','.'))??p.recommended(widget.data),date:DateTime.now());await makePdf(widget.data,q);if(c.mounted)Navigator.pop(c);},child:const Text('Genera PDF'))]);}
+class _QuoteDialogState extends State<QuoteDialog>{final client=TextEditingController();int? selected;final price=TextEditingController();@override Widget build(BuildContext c)=>AlertDialog(title:const Text('Nuovo preventivo'),content:SizedBox(width:500,child:ListView(shrinkWrap:true,children:[TextField(controller:client,decoration:const InputDecoration(labelText:'Cliente')),const SizedBox(height:10),DropdownButtonFormField<int>(value:selected,decoration:const InputDecoration(labelText:'Prodotto'),items:List.generate(widget.data.products.length,(i)=>DropdownMenuItem(value:i,child:Text(widget.data.products[i].name))),onChanged:(v){setState(()=>selected=v);if (v!=null)price.text=widget.data.products[v].recommended(widget.data) { .toStringAsFixed(2); }}),const SizedBox(height:10),TextField(controller:price,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Prezzo preventivo (€)'))])),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Annulla')),FilledButton(onPressed:selected==null?null:()async{final p=widget.data.products[selected!];final q=Quote(client:client.text,product:p,price:double.tryParse(price.text.replaceAll(',','.'))??p.recommended(widget.data),date:DateTime.now());await makePdf(widget.data,q);if (c.mounted) { Navigator.pop(c); }},child:const Text('Genera PDF'))]);}
 
 Future<void> makePdf(AppData d, Quote q) async {
   final regular = pw.Font.ttf(await rootBundle.load('assets/fonts/DejaVuSans.ttf'));
@@ -289,7 +288,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _pickLogo() async {
     final picker = ImagePicker();
     final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90, maxWidth: 1200);
-    if (file == null) return;
+    if (file == null) { return; }
     widget.data.logo = await file.readAsBytes();
     await widget.data.save();
     if (mounted) setState(() {});
@@ -347,7 +346,7 @@ class _SettingsPageState extends State<SettingsPage> {
         d.name=name.text; d.owner=owner.text; d.address=address.text; d.vat=vat.text; d.fiscal=fiscal.text; d.phone=phone.text; d.email=email.text; d.website=website.text; d.iban=iban.text;
         d.fixedMonthly=double.tryParse(fixed.text.replaceAll(',','.'))??0; d.hoursMonthly=double.tryParse(hours.text.replaceAll(',','.'))??160; d.hourlyValue=double.tryParse(hourly.text.replaceAll(',','.'))??30; d.margin=double.tryParse(margin.text.replaceAll(',','.'))??20;
         await d.save(); setState((){});
-        if(c.mounted) ScaffoldMessenger.of(c).showSnackBar(const SnackBar(content:Text('Dati salvati')));
+        if (c.mounted) ScaffoldMessenger.of(c).showSnackBar(const SnackBar(content:Text('Dati salvati')) { ); }
       }, icon:const Icon(Icons.save), label:const Text('Salva impostazioni')),
     ],
   );
