@@ -1,6 +1,6 @@
 ; Prezzo Artigiano - diagnostic-friendly installer
 #define MyAppName "Prezzo Artigiano"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.2"
 #define MyAppPublisher "Prezzo Artigiano"
 #define MyAppExeName "prezzo_artigiano.exe"
 
@@ -12,7 +12,7 @@ AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf64}\Prezzo Artigiano
 DefaultGroupName={#MyAppName}
 OutputDir=installer_output
-OutputBaseFilename=Prezzo-Artigiano-Setup-FIX7
+OutputBaseFilename=Prezzo-Artigiano-Setup-FIX8
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
