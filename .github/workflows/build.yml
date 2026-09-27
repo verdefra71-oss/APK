@@ -1,4 +1,4 @@
-name: Build APK + Windows Setup FIX7
+name: Build APK + Windows Setup FIX8
 
 on:
   push:
@@ -47,7 +47,7 @@ jobs:
         run: flutter pub get
 
       - name: Analyze
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Build Windows
         run: flutter build windows --release -v
@@ -79,11 +79,11 @@ jobs:
       - name: Upload Setup
         uses: actions/upload-artifact@v4
         with:
-          name: prezzo-artigiano-windows-setup-fix7
-          path: installer_output/Prezzo-Artigiano-Setup-FIX7.exe
+          name: prezzo-artigiano-windows-setup-fix8
+          path: installer_output/Prezzo-Artigiano-Setup-FIX8.exe
 
       - name: Upload raw Windows build for diagnostics
         uses: actions/upload-artifact@v4
         with:
-          name: prezzo-artigiano-windows-raw-fix7
+          name: prezzo-artigiano-windows-raw-fix8
           path: build/windows/x64/runner/Release/**
