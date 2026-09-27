@@ -1,20 +1,15 @@
-name: Build APK + Windows
+name: Build APK + Windows Setup
 
 on:
   push:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build Android and Windows in parallel
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [android, windows]
-    runs-on: ${{ matrix.target == 'android' && 'ubuntu-latest' || 'windows-latest' }}
+  android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -22,63 +17,89 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Generate Flutter platform files
-        shell: bash
-        run: |
-          cp lib/main.dart /tmp/main.dart
-          cp pubspec.yaml /tmp/pubspec.yaml
-          flutter create --platforms=android,windows --project-name prezzo_artigiano --org com.artigiano .
-          cp /tmp/main.dart lib/main.dart
-          cp /tmp/pubspec.yaml pubspec.yaml
-
-      - name: Setup Android SDK
-        if: matrix.target == 'android'
-        uses: android-actions/setup-android@v3
-
-      - name: Ensure Android SDK 36
-        if: matrix.target == 'android'
-        shell: bash
-        run: |
-          sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
-          yes | sdkmanager --licenses >/dev/null || true
-
-      - name: Set Android compileSdk 36
-        if: matrix.target == 'android'
-        shell: bash
-        run: |
-          python - <<'PY2'
-          from pathlib import Path
-          p = Path('android/app/build.gradle')
-          s = p.read_text()
-          s = s.replace('compileSdk = flutter.compileSdkVersion', 'compileSdk = 36')
-          s = s.replace('compileSdk flutter.compileSdkVersion', 'compileSdk 36')
-          s = s.replace('compileSdk 34', 'compileSdk 36')
-          s = s.replace('compileSdk = 34', 'compileSdk = 36')
-          p.write_text(s)
-          print(p.read_text())
-          PY2
+      - name: Create Android platform
+        run: flutter create --platforms=android --project-name prezzo_artigiano --org com.artigiano --no-pub .
 
       - name: Get dependencies
         run: flutter pub get
 
       - name: Build APK
-        if: matrix.target == 'android'
         run: flutter build apk --release
 
       - name: Upload APK
-        if: matrix.target == 'android'
         uses: actions/upload-artifact@v4
         with:
           name: prezzo-artigiano-android-apk
           path: build/app/outputs/flutter-apk/app-release.apk
 
+  windows:
+    name: Build Windows Setup
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Windows desktop
+        shell: pwsh
+        run: flutter config --enable-windows-desktop
+
+      - name: Create Windows platform
+        shell: pwsh
+        run: flutter create --platforms=windows --project-name prezzo_artigiano --org com.artigiano --no-pub .
+
+      - name: Get dependencies
+        run: flutter pub get
+
       - name: Build Windows
-        if: matrix.target == 'windows'
         run: flutter build windows --release
 
-      - name: Upload Windows
-        if: matrix.target == 'windows'
+      - name: Verify Windows EXE
+        shell: pwsh
+        run: |
+          $exe = "build\windows\x64\runner\Release\prezzo_artigiano.exe"
+          if (!(Test-Path $exe)) {
+            Write-Error "EXE Windows non trovato: $exe"
+            exit 1
+          }
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+
+      - name: Build Setup.exe
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) {
+            $iscc = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+          }
+          if (!(Test-Path $iscc)) {
+            Write-Error "ISCC.exe non trovato"
+            exit 1
+          }
+          & $iscc "installer.iss"
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Verify Setup.exe
+        shell: pwsh
+        run: |
+          $setup = "installer_output\Prezzo-Artigiano-Setup.exe"
+          if (!(Test-Path $setup)) {
+            Write-Error "Setup.exe non trovato"
+            exit 1
+          }
+          Get-Item $setup | Select-Object FullName,Length
+
+      - name: Upload Windows Setup
         uses: actions/upload-artifact@v4
         with:
-          name: prezzo-artigiano-windows
-          path: build/windows/x64/runner/Release/
+          name: prezzo-artigiano-windows-setup
+          path: installer_output/Prezzo-Artigiano-Setup.exe
