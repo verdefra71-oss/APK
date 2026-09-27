@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:file_picker/file_picker.dart';
 
 void main() => runApp(const ArtigianoApp());
 
@@ -43,6 +45,8 @@ class AppData {
   List<Product> products=[]; List<Quote> quotes=[];
   Future<void> load() async { final p=await SharedPreferences.getInstance(); name=p.getString('name')??''; logo = p.getString('logo')!=null ? base64Decode(p.getString('logo')!) : null; owner=p.getString('owner')??''; address=p.getString('address')??''; vat=p.getString('vat')??''; fiscal=p.getString('fiscal')??''; phone=p.getString('phone')??''; email=p.getString('email')??''; website=p.getString('website')??''; iban=p.getString('iban')??''; fixedMonthly=p.getDouble('fixed')??0; hoursMonthly=p.getDouble('hours')??160; hourlyValue=p.getDouble('hourly')??30; margin=p.getDouble('margin')??20; final s=p.getString('products'); if(s!=null) products=(jsonDecode(s) as List).map((e)=>Product.fromJson(e)).toList(); }
   Future<void> save() async { final p=await SharedPreferences.getInstance(); await p.setString('name',name); if (logo != null) await p.setString('logo', base64Encode(logo!)); else await p.remove('logo'); await p.setString('owner',owner); await p.setString('address',address); await p.setString('vat',vat); await p.setString('fiscal',fiscal); await p.setString('phone',phone); await p.setString('email',email); await p.setString('website',website); await p.setString('iban',iban); await p.setDouble('fixed',fixedMonthly); await p.setDouble('hours',hoursMonthly); await p.setDouble('hourly',hourlyValue); await p.setDouble('margin',margin); await p.setString('products',jsonEncode(products.map((e)=>e.toJson()).toList())); }
+  Map<String,dynamic> toBackupJson()=>{'version':1,'name':name,'owner':owner,'address':address,'vat':vat,'fiscal':fiscal,'phone':phone,'email':email,'website':website,'iban':iban,'fixedMonthly':fixedMonthly,'hoursMonthly':hoursMonthly,'hourlyValue':hourlyValue,'margin':margin,'logo':logo==null?null:base64Encode(logo!), 'products':products.map((e)=>e.toJson()).toList(), 'quotes':quotes.map((q)=>{'client':q.client,'price':q.price,'date':q.date.toIso8601String(),'product':q.product.toJson()}).toList()};
+  Future<void> fromBackupJson(Map<String,dynamic> j) async { name=j['name']??''; owner=j['owner']??''; address=j['address']??''; vat=j['vat']??''; fiscal=j['fiscal']??''; phone=j['phone']??''; email=j['email']??''; website=j['website']??''; iban=j['iban']??''; fixedMonthly=(j['fixedMonthly'] as num?)?.toDouble()??0; hoursMonthly=(j['hoursMonthly'] as num?)?.toDouble()??160; hourlyValue=(j['hourlyValue'] as num?)?.toDouble()??30; margin=(j['margin'] as num?)?.toDouble()??20; final l=j['logo']; logo=l is String && l.isNotEmpty?base64Decode(l):null; final ps=j['products']; products=ps is List?ps.map((e)=>Product.fromJson(Map<String,dynamic>.from(e))).toList():[]; final qs=j['quotes']; quotes=[]; if(qs is List){for(final e in qs){final q=Map<String,dynamic>.from(e); quotes.add(Quote(client:q['client']??'',product:Product.fromJson(Map<String,dynamic>.from(q['product'])),price:(q['price'] as num).toDouble(),date:DateTime.tryParse(q['date']??'')??DateTime.now());}} await save();}
   double get fixedPerHour=>hoursMonthly<=0?0:fixedMonthly/hoursMonthly;
 }
 class Product { String name,desc; double materials,hours,extra,artistic; Product({required this.name,required this.desc,required this.materials,required this.hours,required this.extra,required this.artistic}); double cost(AppData d)=>materials+hours*(d.hourlyValue+d.fixedPerHour)+extra; double artisticPct()=>artistic*0.10; double recommended(AppData d)=>cost(d)*(1+artisticPct())*(1+d.margin/100); Map<String,dynamic> toJson()=>{'name':name,'desc':desc,'materials':materials,'hours':hours,'extra':extra,'artistic':artistic}; factory Product.fromJson(Map<String,dynamic> j)=>Product(name:j['name'],desc:j['desc'],materials:(j['materials'] as num).toDouble(),hours:(j['hours'] as num).toDouble(),extra:(j['extra'] as num).toDouble(),artistic:(j['artistic'] as num).toDouble()); }
@@ -342,6 +346,17 @@ class _SettingsPageState extends State<SettingsPage> {
       const SizedBox(height: 12),
       Text('Quota spese fisse per ora: € ${widget.data.fixedPerHour.toStringAsFixed(2)}'),
       const SizedBox(height: 20),
+      const SizedBox(height: 20),
+      const Text('Backup e ripristino', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 8),
+      const Text('Salva tutti i dati dell’attività, prodotti, logo e preventivi in un file di backup.'),
+      const SizedBox(height: 12),
+      Row(children: [
+        Expanded(child: OutlinedButton.icon(onPressed: _backup, icon: const Icon(Icons.backup_outlined), label: const Text('Crea backup'))),
+        const SizedBox(width: 10),
+        Expanded(child: OutlinedButton.icon(onPressed: _restore, icon: const Icon(Icons.restore), label: const Text('Ripristina'))),
+      ]),
+      const SizedBox(height: 20),
       FilledButton.icon(onPressed:() async {
         final d=widget.data;
         d.name=name.text; d.owner=owner.text; d.address=address.text; d.vat=vat.text; d.fiscal=fiscal.text; d.phone=phone.text; d.email=email.text; d.website=website.text; d.iban=iban.text;
@@ -351,6 +366,30 @@ class _SettingsPageState extends State<SettingsPage> {
       }, icon:const Icon(Icons.save), label:const Text('Salva impostazioni')),
     ],
   );
+
+  Future<void> _backup() async {
+    final json = const JsonEncoder.withIndent('  ').convert(widget.data.toBackupJson());
+    final path = await FilePicker.platform.saveFile(dialogTitle: 'Salva backup', fileName: 'prezzo_artigiano_backup.json', type: FileType.custom, allowedExtensions: ['json']);
+    if (path == null) return;
+    await File(path).writeAsString(json);
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Backup creato correttamente')));
+  }
+
+  Future<void> _restore() async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['json'], withData: true);
+    if (result == null || result.files.isEmpty) return;
+    final f = result.files.single;
+    String text;
+    if (f.bytes != null) { text = utf8.decode(f.bytes!); } else if (f.path != null) { text = await File(f.path!).readAsString(); } else { return; }
+    try {
+      await widget.data.fromBackupJson(jsonDecode(text) as Map<String,dynamic>);
+      if (!mounted) return;
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Backup ripristinato correttamente')));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Backup non valido')));
+    }
+  }
 
   Widget _f(TextEditingController x,String l,{bool num=false})=>Padding(padding:const EdgeInsets.only(bottom:10),child:TextField(controller:x,keyboardType:num?const TextInputType.numberWithOptions(decimal:true):null,decoration:InputDecoration(labelText:l,border:const OutlineInputBorder())));
 }
