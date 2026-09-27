@@ -1,24 +1,21 @@
 # Prezzo Artigiano
 
-App Flutter per il calcolo del costo reale e del prezzo consigliato dei prodotti artigianali.
+Flutter app for artisans: product costing, working hours, fixed costs, artistic value (0-5) and professional quotes.
 
 ## GitHub Actions
 
-Il workflow `.github/workflows/build.yml` esegue **simultaneamente** due job indipendenti:
+The workflow in `.github/workflows/build.yml` runs the Android and Windows builds **in parallel**.
 
-- **Android APK** → `prezzo-artigiano-android-apk`
-- **Windows** → `prezzo-artigiano-windows`
+It deliberately generates the missing Flutter platform folders on the GitHub runner before building:
 
-Parte automaticamente a ogni `push` su `main` o `master`, oppure manualmente da **GitHub → Actions → Build Android APK + Windows → Run workflow**.
+- Android: `flutter create --platforms=android --no-pub .`
+- Windows: `flutter create --platforms=windows --no-pub .`
 
-I due job sono paralleli: se uno dei due fallisce, l'altro può comunque completare la propria build.
+This prevents errors such as `android/app/build.gradle not found` when the repository does not contain generated platform folders.
 
-## Come caricarlo su GitHub
+### Artifacts
 
-1. Crea un nuovo repository GitHub.
-2. Estrai questo progetto.
-3. Carica tutti i file nel repository.
-4. Fai `push` sul branch `main` oppure `master`.
-5. Apri **Actions**.
-6. Attendi il completamento dei due job.
-7. Scarica gli Artifact `prezzo-artigiano-android-apk` e `prezzo-artigiano-windows`.
+After the workflow finishes, GitHub Actions publishes:
+
+- `prezzo-artigiano-android-apk`
+- `prezzo-artigiano-windows`
