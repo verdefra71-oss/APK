@@ -1,28 +1,11 @@
-# Prezzo Artigiano
+# Prezzo Artigiano FIX7
 
-Progetto Flutter per Android e Windows.
+Questa versione include una build Windows più controllata e un launcher diagnostico.
 
-## Windows
+Se `Prezzo-Artigiano-Setup-FIX7.exe` installa ma l'app non parte:
+1. installa normalmente;
+2. dal menu Start apri **Diagnostica avvio**;
+3. dopo il tentativo di avvio, nella cartella dell'app trovi `startup-log.txt`;
+4. invia quel file per identificare l'errore reale.
 
-GitHub Actions compila l'app Windows e crea automaticamente:
-
-`Prezzo-Artigiano-Setup.exe`
-
-L'installer:
-- installa l'app nella cartella Programmi;
-- crea il collegamento nel menu Start;
-- crea il collegamento sul desktop;
-- permette la disinstallazione da Windows;
-- avvia l'app al termine dell'installazione.
-
-Non è necessario estrarre manualmente DLL o cartelle Flutter.
-
-## GitHub Actions
-
-Dopo la build, scaricare l'artifact:
-
-`prezzo-artigiano-windows-setup`
-
-All'interno si trova:
-
-`Prezzo-Artigiano-Setup.exe`
+La build GitHub pubblica anche l'artifact `prezzo-artigiano-windows-raw-fix7`, utile per diagnosticare problemi dell'installer separatamente dalla build Flutter.
