@@ -41,8 +41,8 @@ class AppData {
   String name=''; String owner=''; String address=''; String vat=''; String fiscal=''; String phone=''; String email=''; String website=''; String iban=''; Uint8List? logo;
   double fixedMonthly=0, hoursMonthly=160, hourlyValue=30, margin=20;
   List<Product> products=[]; List<Quote> quotes=[];
-  Future<void> load() async { final p=await SharedPreferences.getInstance(); name=p.getString('name')??''; owner=p.getString('owner')??''; address=p.getString('address')??''; vat=p.getString('vat')??''; fiscal=p.getString('fiscal')??''; phone=p.getString('phone')??''; email=p.getString('email')??''; website=p.getString('website')??''; iban=p.getString('iban')??''; fixedMonthly=p.getDouble('fixed')??0; hoursMonthly=p.getDouble('hours')??160; hourlyValue=p.getDouble('hourly')??30; margin=p.getDouble('margin')??20; final s=p.getString('products'); if(s!=null) products=(jsonDecode(s) as List).map((e)=>Product.fromJson(e)).toList(); }
-  Future<void> save() async { final p=await SharedPreferences.getInstance(); await p.setString('name',name); await p.setString('owner',owner); await p.setString('address',address); await p.setString('vat',vat); await p.setString('fiscal',fiscal); await p.setString('phone',phone); await p.setString('email',email); await p.setString('website',website); await p.setString('iban',iban); await p.setDouble('fixed',fixedMonthly); await p.setDouble('hours',hoursMonthly); await p.setDouble('hourly',hourlyValue); await p.setDouble('margin',margin); await p.setString('products',jsonEncode(products.map((e)=>e.toJson()).toList())); }
+  Future<void> load() async { final p=await SharedPreferences.getInstance(); name=p.getString('name')??''; logo = p.getString('logo')!=null ? base64Decode(p.getString('logo')!) : null; owner=p.getString('owner')??''; address=p.getString('address')??''; vat=p.getString('vat')??''; fiscal=p.getString('fiscal')??''; phone=p.getString('phone')??''; email=p.getString('email')??''; website=p.getString('website')??''; iban=p.getString('iban')??''; fixedMonthly=p.getDouble('fixed')??0; hoursMonthly=p.getDouble('hours')??160; hourlyValue=p.getDouble('hourly')??30; margin=p.getDouble('margin')??20; final s=p.getString('products'); if(s!=null) products=(jsonDecode(s) as List).map((e)=>Product.fromJson(e)).toList(); }
+  Future<void> save() async { final p=await SharedPreferences.getInstance(); await p.setString('name',name); if (logo != null) await p.setString('logo', base64Encode(logo!)); else await p.remove('logo'); await p.setString('owner',owner); await p.setString('address',address); await p.setString('vat',vat); await p.setString('fiscal',fiscal); await p.setString('phone',phone); await p.setString('email',email); await p.setString('website',website); await p.setString('iban',iban); await p.setDouble('fixed',fixedMonthly); await p.setDouble('hours',hoursMonthly); await p.setDouble('hourly',hourlyValue); await p.setDouble('margin',margin); await p.setString('products',jsonEncode(products.map((e)=>e.toJson()).toList())); }
   double get fixedPerHour=>hoursMonthly<=0?0:fixedMonthly/hoursMonthly;
 }
 class Product { String name,desc; double materials,hours,extra,artistic; Product({required this.name,required this.desc,required this.materials,required this.hours,required this.extra,required this.artistic}); double cost(AppData d)=>materials+hours*(d.hourlyValue+d.fixedPerHour)+extra; double artisticPct()=>artistic*0.10; double recommended(AppData d)=>cost(d)*(1+artisticPct())*(1+d.margin/100); Map<String,dynamic> toJson()=>{'name':name,'desc':desc,'materials':materials,'hours':hours,'extra':extra,'artistic':artistic}; factory Product.fromJson(Map<String,dynamic> j)=>Product(name:j['name'],desc:j['desc'],materials:(j['materials'] as num).toDouble(),hours:(j['hours'] as num).toDouble(),extra:(j['extra'] as num).toDouble(),artistic:(j['artistic'] as num).toDouble()); }
@@ -212,15 +212,21 @@ Future<void> makePdf(AppData d, Quote q) async {
   final regular = pw.Font.ttf(await rootBundle.load('assets/fonts/DejaVuSans.ttf'));
   final bold = pw.Font.ttf(await rootBundle.load('assets/fonts/DejaVuSans-Bold.ttf'));
   final doc = pw.Document(theme: pw.ThemeData.withFont(base: regular, bold: bold));
+  final logoImage = d.logo != null ? pw.MemoryImage(d.logo!) : null;
   doc.addPage(
     pw.Page(
       pageFormat: PdfPageFormat.a4,
       build: (ctx) => pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text(d.name.isEmpty ? 'ATTIVITÀ ARTIGIANA' : d.name, style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 4),
-          pw.Text([d.owner, d.address, if (d.vat.isNotEmpty) 'P.IVA ${d.vat}', d.phone, d.email].where((x) => x.isNotEmpty).join(' · ')),
+          pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            if (logoImage != null) pw.Container(width: 90, height: 70, margin: const pw.EdgeInsets.only(right: 14), child: pw.Image(logoImage!, fit: pw.BoxFit.contain)),
+            pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              pw.Text(d.name.isEmpty ? 'ATTIVITÀ ARTIGIANA' : d.name, style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 4),
+              pw.Text([d.owner, d.address, if (d.vat.isNotEmpty) 'P.IVA ${d.vat}', d.phone, d.email].where((x) => x.isNotEmpty).join(' · ')),
+            ])),
+          ]),
           pw.SizedBox(height: 30),
           pw.Text('PREVENTIVO', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
           pw.Text('Data: ${DateFormat('dd/MM/yyyy').format(q.date)}'),
@@ -252,5 +258,99 @@ Future<void> makePdf(AppData d, Quote q) async {
   await Printing.layoutPdf(onLayout: (_) => doc.save());
 }
 
-class SettingsPage extends StatefulWidget { final AppData data; const SettingsPage({super.key,required this.data}); @override State<SettingsPage> createState()=>_SettingsPageState(); }
-class _SettingsPageState extends State<SettingsPage>{late TextEditingController name,owner,address,vat,fiscal,phone,email,website,iban,fixed,hours,hourly,margin;@override void initState(){super.initState();final d=widget.data;name=TextEditingController(text:d.name);owner=TextEditingController(text:d.owner);address=TextEditingController(text:d.address);vat=TextEditingController(text:d.vat);fiscal=TextEditingController(text:d.fiscal);phone=TextEditingController(text:d.phone);email=TextEditingController(text:d.email);website=TextEditingController(text:d.website);iban=TextEditingController(text:d.iban);fixed=TextEditingController(text:d.fixedMonthly.toString());hours=TextEditingController(text:d.hoursMonthly.toString());hourly=TextEditingController(text:d.hourlyValue.toString());margin=TextEditingController(text:d.margin.toString());} @override Widget build(BuildContext c)=>ListView(padding:const EdgeInsets.all(16),children:[const Text('Dati dell’attività',style:TextStyle(fontSize:20,fontWeight:FontWeight.bold)),const SizedBox(height:12),...[_f(name,'Nome attività'),_f(owner,'Titolare / Ragione sociale'),_f(address,'Indirizzo'),_f(vat,'Partita IVA'),_f(fiscal,'Codice fiscale'),_f(phone,'Telefono'),_f(email,'Email'),_f(website,'Sito web'),_f(iban,'IBAN')],const SizedBox(height:18),const Text('Costi e calcolo',style:TextStyle(fontSize:20,fontWeight:FontWeight.bold)),const SizedBox(height:12),...[_f(fixed,'Spese fisse mensili (€)',num:true),_f(hours,'Ore lavorabili mensili',num:true),_f(hourly,'Valore della tua ora (€)',num:true),_f(margin,'Margine commerciale (%)',num:true)],const SizedBox(height:12),Text('Quota spese fisse per ora: € ${widget.data.fixedPerHour.toStringAsFixed(2)}'),const SizedBox(height:20),FilledButton.icon(onPressed:()async{final d=widget.data;d.name=name.text;d.owner=owner.text;d.address=address.text;d.vat=vat.text;d.fiscal=fiscal.text;d.phone=phone.text;d.email=email.text;d.website=website.text;d.iban=iban.text;d.fixedMonthly=double.tryParse(fixed.text.replaceAll(',','.'))??0;d.hoursMonthly=double.tryParse(hours.text.replaceAll(',','.'))??160;d.hourlyValue=double.tryParse(hourly.text.replaceAll(',','.'))??30;d.margin=double.tryParse(margin.text.replaceAll(',','.'))??20;await d.save();setState((){});if(c.mounted)ScaffoldMessenger.of(c).showSnackBar(const SnackBar(content:Text('Dati salvati')));},icon:const Icon(Icons.save),label:const Text('Salva impostazioni'))]); Widget _f(TextEditingController x,String l,{bool num=false})=>Padding(padding:const EdgeInsets.only(bottom:10),child:TextField(controller:x,keyboardType:num?TextInputType.number:null,decoration:InputDecoration(labelText:l,border:const OutlineInputBorder())));}
+class SettingsPage extends StatefulWidget {
+  final AppData data;
+  const SettingsPage({super.key, required this.data});
+  @override State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  late TextEditingController name, owner, address, vat, fiscal, phone, email, website, iban, fixed, hours, hourly, margin;
+
+  @override
+  void initState() {
+    super.initState();
+    final d = widget.data;
+    name = TextEditingController(text: d.name);
+    owner = TextEditingController(text: d.owner);
+    address = TextEditingController(text: d.address);
+    vat = TextEditingController(text: d.vat);
+    fiscal = TextEditingController(text: d.fiscal);
+    phone = TextEditingController(text: d.phone);
+    email = TextEditingController(text: d.email);
+    website = TextEditingController(text: d.website);
+    iban = TextEditingController(text: d.iban);
+    fixed = TextEditingController(text: d.fixedMonthly.toString());
+    hours = TextEditingController(text: d.hoursMonthly.toString());
+    hourly = TextEditingController(text: d.hourlyValue.toString());
+    margin = TextEditingController(text: d.margin.toString());
+  }
+
+  Future<void> _pickLogo() async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90, maxWidth: 1200);
+    if (file == null) return;
+    widget.data.logo = await file.readAsBytes();
+    await widget.data.save();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _removeLogo() async {
+    widget.data.logo = null;
+    await widget.data.save();
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext c) => ListView(
+    padding: const EdgeInsets.all(16),
+    children: [
+      const Text('Dati dell’attività', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 12),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Logo dell’attività', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Center(child: Container(
+              width: 180, height: 120,
+              decoration: BoxDecoration(border: Border.all(color: Theme.of(c).dividerColor), borderRadius: BorderRadius.circular(12)),
+              child: widget.data.logo == null
+                  ? const Icon(Icons.business, size: 52)
+                  : ClipRRect(borderRadius: BorderRadius.circular(11), child: Image.memory(widget.data.logo!, fit: BoxFit.contain)),
+            )),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(child: FilledButton.icon(onPressed: _pickLogo, icon: const Icon(Icons.upload), label: Text(widget.data.logo == null ? 'Inserisci logo' : 'Cambia logo'))),
+              if (widget.data.logo != null) ...[
+                const SizedBox(width: 8),
+                IconButton(onPressed: _removeLogo, tooltip: 'Rimuovi logo', icon: const Icon(Icons.delete_outline)),
+              ],
+            ]),
+            const SizedBox(height: 6),
+            const Text('Il logo verrà inserito automaticamente nell’intestazione del preventivo PDF.', style: TextStyle(fontSize: 12)),
+          ]),
+        ),
+      ),
+      const SizedBox(height: 12),
+      ...[_f(name,'Nome attività'),_f(owner,'Titolare / Ragione sociale'),_f(address,'Indirizzo'),_f(vat,'Partita IVA'),_f(fiscal,'Codice fiscale'),_f(phone,'Telefono'),_f(email,'Email'),_f(website,'Sito web'),_f(iban,'IBAN')],
+      const SizedBox(height: 18),
+      const Text('Costi e calcolo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 12),
+      ...[_f(fixed,'Spese fisse mensili (€)',num:true),_f(hours,'Ore lavorabili mensili',num:true),_f(hourly,'Valore della tua ora (€)',num:true),_f(margin,'Margine commerciale (%)',num:true)],
+      const SizedBox(height: 12),
+      Text('Quota spese fisse per ora: € ${widget.data.fixedPerHour.toStringAsFixed(2)}'),
+      const SizedBox(height: 20),
+      FilledButton.icon(onPressed:() async {
+        final d=widget.data;
+        d.name=name.text; d.owner=owner.text; d.address=address.text; d.vat=vat.text; d.fiscal=fiscal.text; d.phone=phone.text; d.email=email.text; d.website=website.text; d.iban=iban.text;
+        d.fixedMonthly=double.tryParse(fixed.text.replaceAll(',','.'))??0; d.hoursMonthly=double.tryParse(hours.text.replaceAll(',','.'))??160; d.hourlyValue=double.tryParse(hourly.text.replaceAll(',','.'))??30; d.margin=double.tryParse(margin.text.replaceAll(',','.'))??20;
+        await d.save(); setState((){});
+        if(c.mounted) ScaffoldMessenger.of(c).showSnackBar(const SnackBar(content:Text('Dati salvati')));
+      }, icon:const Icon(Icons.save), label:const Text('Salva impostazioni')),
+    ],
+  );
+
+  Widget _f(TextEditingController x,String l,{bool num=false})=>Padding(padding:const EdgeInsets.only(bottom:10),child:TextField(controller:x,keyboardType:num?const TextInputType.numberWithOptions(decimal:true):null,decoration:InputDecoration(labelText:l,border:const OutlineInputBorder())));
+}
