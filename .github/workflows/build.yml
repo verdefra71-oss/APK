@@ -31,6 +31,29 @@ jobs:
           cp /tmp/main.dart lib/main.dart
           cp /tmp/pubspec.yaml pubspec.yaml
 
+      - name: Ensure Android SDK 36
+        if: matrix.target == 'android'
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set Android compileSdk 36
+        if: matrix.target == 'android'
+        shell: bash
+        run: |
+          python - <<'PY2'
+          from pathlib import Path
+          p = Path('android/app/build.gradle')
+          s = p.read_text()
+          s = s.replace('compileSdk = flutter.compileSdkVersion', 'compileSdk = 36')
+          s = s.replace('compileSdk flutter.compileSdkVersion', 'compileSdk 36')
+          s = s.replace('compileSdk 34', 'compileSdk 36')
+          s = s.replace('compileSdk = 34', 'compileSdk = 36')
+          p.write_text(s)
+          print(p.read_text())
+          PY2
+
       - name: Get dependencies
         run: flutter pub get
 
