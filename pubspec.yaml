@@ -1,42 +1,24 @@
-name: preventivi_app
-description: App per la gestione di preventivi e rate.
+name: prezzo_artigiano
+description: Calcolo costi, valore artistico e preventivi per artigiani.
 publish_to: 'none'
-version: 1.1.0+2
-
+version: 1.0.0+1
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  sqflite: ^2.3.0
-  path: ^1.8.3
-  pdf: ^3.10.8
-  printing: ^5.13.1
-  intl: ^0.19.0
-  path_provider: ^2.1.4
-  file_picker: ^8.1.7
-  share_plus: ^10.1.4
-  url_launcher: ^6.3.2
-  flutter_local_notifications: ^19.4.0
-  timezone: ^0.10.1
+  cupertino_icons: ^1.0.8
   shared_preferences: ^2.5.3
+  pdf: ^3.11.3
+  printing: ^5.14.2
+  image_picker: ^1.1.2
+  intl: ^0.20.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
-  flutter_launcher_icons: ^0.14.4
-
-flutter_launcher_icons:
-  android: true
-  ios: false
-  image_path: assets/app_icon.png
-  min_sdk_android: 21
+  flutter_lints: ^5.0.0
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/logo.png
-    - assets/fonts/DejaVuSans.ttf
-    - assets/fonts/DejaVuSans-Bold.ttf
