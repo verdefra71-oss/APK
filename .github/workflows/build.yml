@@ -1,4 +1,4 @@
-name: Build APK + Windows Setup FIX9
+name: Build APK + Windows Setup FIX10
 
 on:
   push:
@@ -41,6 +41,11 @@ jobs:
         shell: pwsh
         run: flutter create --platforms=windows --project-name prezzo_artigiano --org com.artigiano --no-pub .
 
+      - name: Remove stale generated tests
+        shell: pwsh
+        run: |
+          if (Test-Path test) { Remove-Item test -Recurse -Force }
+
       - name: Dependencies
         run: flutter pub get
 
@@ -73,11 +78,11 @@ jobs:
       - name: Upload Setup
         uses: actions/upload-artifact@v4
         with:
-          name: prezzo-artigiano-windows-setup-fix9
-          path: installer_output/Prezzo-Artigiano-Setup-FIX9.exe
+          name: prezzo-artigiano-windows-setup-fix10
+          path: installer_output/Prezzo-Artigiano-Setup-FIX10.exe
 
       - name: Upload raw Windows build
         uses: actions/upload-artifact@v4
         with:
-          name: prezzo-artigiano-windows-raw-fix9
+          name: prezzo-artigiano-windows-raw-fix10
           path: build/windows/x64/runner/Release/**
