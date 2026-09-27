@@ -1,16 +1,10 @@
-# Prezzo Artigiano FIX9
+# Prezzo Artigiano FIX10
 
-FIX9 parte dalla sorgente pulita FIX6. Non modifica automaticamente il codice
-Dart con regex.
+Correzione CI: il vecchio `test/widget_test.dart` che referenziava `MyApp`
+viene eliminato sia dal progetto ZIP sia automaticamente durante GitHub Actions.
 
-Correzione principale:
-- rimosso il test Flutter predefinito `widget_test.dart` che referenziava `MyApp`;
-- mantenuto il codice `lib/main.dart` originale della FIX6;
-- build Android e Windows separate;
-- analisi Flutter prima della compilazione;
-- installer Windows FIX9;
-- launcher diagnostico disponibile nell'installazione.
+Gli avvisi di lint mostrati da `flutter analyze` non sono errori bloccanti.
+L'errore `MyApp` non deve più comparire.
 
-Artifact Windows:
-- `prezzo-artigiano-windows-setup-fix9`
-- `prezzo-artigiano-windows-raw-fix9`
+La build Windows genera:
+`Prezzo-Artigiano-Setup-FIX10.exe`

@@ -1,6 +1,6 @@
-; Prezzo Artigiano FIX9
+; Prezzo Artigiano FIX10
 #define MyAppName "Prezzo Artigiano"
-#define MyAppVersion "1.0.3"
+#define MyAppVersion "1.0.4"
 #define MyAppPublisher "Prezzo Artigiano"
 #define MyAppExeName "prezzo_artigiano.exe"
 
@@ -12,7 +12,7 @@ AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf64}\Prezzo Artigiano
 DefaultGroupName={#MyAppName}
 OutputDir=installer_output
-OutputBaseFilename=Prezzo-Artigiano-Setup-FIX9
+OutputBaseFilename=Prezzo-Artigiano-Setup-FIX10
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
