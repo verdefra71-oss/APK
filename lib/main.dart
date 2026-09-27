@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -208,7 +209,9 @@ class QuoteDialog extends StatefulWidget { final AppData data; const QuoteDialog
 class _QuoteDialogState extends State<QuoteDialog>{final client=TextEditingController();int? selected;final price=TextEditingController();@override Widget build(BuildContext c)=>AlertDialog(title:const Text('Nuovo preventivo'),content:SizedBox(width:500,child:ListView(shrinkWrap:true,children:[TextField(controller:client,decoration:const InputDecoration(labelText:'Cliente')),const SizedBox(height:10),DropdownButtonFormField<int>(value:selected,decoration:const InputDecoration(labelText:'Prodotto'),items:List.generate(widget.data.products.length,(i)=>DropdownMenuItem(value:i,child:Text(widget.data.products[i].name))),onChanged:(v){setState(()=>selected=v);if(v!=null)price.text=widget.data.products[v].recommended(widget.data).toStringAsFixed(2);}),const SizedBox(height:10),TextField(controller:price,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Prezzo preventivo (€)'))])),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Annulla')),FilledButton(onPressed:selected==null?null:()async{final p=widget.data.products[selected!];final q=Quote(client:client.text,product:p,price:double.tryParse(price.text.replaceAll(',','.'))??p.recommended(widget.data),date:DateTime.now());await makePdf(widget.data,q);if(c.mounted)Navigator.pop(c);},child:const Text('Genera PDF'))]);}
 
 Future<void> makePdf(AppData d, Quote q) async {
-  final doc = pw.Document();
+  final regular = pw.Font.ttf(await rootBundle.load('assets/fonts/DejaVuSans.ttf'));
+  final bold = pw.Font.ttf(await rootBundle.load('assets/fonts/DejaVuSans-Bold.ttf'));
+  final doc = pw.Document(theme: pw.ThemeData.withFont(base: regular, bold: bold));
   doc.addPage(
     pw.Page(
       pageFormat: PdfPageFormat.a4,
