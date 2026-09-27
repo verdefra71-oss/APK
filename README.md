@@ -1,10 +1,14 @@
-# Prezzo Artigiano FIX10
+# Prezzo Artigiano FIX11
 
-Correzione CI: il vecchio `test/widget_test.dart` che referenziava `MyApp`
-viene eliminato sia dal progetto ZIP sia automaticamente durante GitHub Actions.
+FIX11 risolve il caso in cui Windows installa correttamente l'app ma l'EXE
+non parte perché nel PC manca il runtime Microsoft Visual C++ richiesto
+dall'applicazione Windows.
 
-Gli avvisi di lint mostrati da `flutter analyze` non sono errori bloccanti.
-L'errore `MyApp` non deve più comparire.
+La GitHub Action scarica il Visual C++ Redistributable x64 ufficiale Microsoft
+e lo inserisce nel Setup. L'installer lo installa prima di avviare Prezzo Artigiano.
 
-La build Windows genera:
-`Prezzo-Artigiano-Setup-FIX10.exe`
+Artifact:
+- `prezzo-artigiano-windows-setup-fix11`
+- `prezzo-artigiano-windows-raw-fix11`
+
+È inoltre presente il launcher `Avvia-Prezzo-Artigiano-Diagnostica.bat`.
