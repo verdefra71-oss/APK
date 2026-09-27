@@ -47,21 +47,207 @@ class AppData {
 class Product { String name,desc; double materials,hours,extra,artistic; Product({required this.name,required this.desc,required this.materials,required this.hours,required this.extra,required this.artistic}); double cost(AppData d)=>materials+hours*(d.hourlyValue+d.fixedPerHour)+extra; double artisticPct()=>artistic*0.10; double recommended(AppData d)=>cost(d)*(1+artisticPct())*(1+d.margin/100); Map<String,dynamic> toJson()=>{'name':name,'desc':desc,'materials':materials,'hours':hours,'extra':extra,'artistic':artistic}; factory Product.fromJson(Map<String,dynamic> j)=>Product(name:j['name'],desc:j['desc'],materials:(j['materials'] as num).toDouble(),hours:(j['hours'] as num).toDouble(),extra:(j['extra'] as num).toDouble(),artistic:(j['artistic'] as num).toDouble()); }
 class Quote { String client; Product product; double price; DateTime date; Quote({required this.client,required this.product,required this.price,required this.date}); }
 
-class Dashboard extends StatelessWidget { final AppData data; const Dashboard({super.key,required this.data}); @override Widget build(BuildContext c)=>ListView(padding:const EdgeInsets.all(16),children:[Card(child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(data.name.isEmpty?'La tua attività':data.name,style:Theme.of(c).textTheme.headlineSmall?.copyWith(fontWeight:FontWeight.bold)),const SizedBox(height:6),Text('Calcolo professionale del prezzo artigianale'),const SizedBox(height:18),Row(children:[Expanded(child:_stat(c,'Prodotti',data.products.length.toString(),Icons.inventory_2)),Expanded(child:_stat(c,'Spese/ora','€ ${data.fixedPerHour.toStringAsFixed(2)}',Icons.euro)),Expanded(child:_stat(c,'Ora lavoro','€ ${data.hourlyValue.toStringAsFixed(2)}',Icons.schedule))])])),const SizedBox(height:12),_info(c,'Come funziona','Materiali + lavoro + quota spese fisse + valore artistico 0–5 + margine. I costi interni non vengono mostrati nel preventivo.'),const SizedBox(height:12),_info(c,'Valore artistico','0 = standard · 1 = personalizzazione · 2 = creativo · 3 = artistico · 4 = molto complesso · 5 = pezzo unico')]); }
-Widget _stat(BuildContext c,String a,String b,IconData i)=>Column(children:[Icon(i,size:28),const SizedBox(height:5),Text(b,style:const TextStyle(fontWeight:FontWeight.bold)),Text(a,style:const TextStyle(fontSize:12))]);
-Widget _info(BuildContext c,String t,String x)=>Card(child:ListTile(leading:const Icon(Icons.info_outline),title:Text(t,style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text(x))); }
+class Dashboard extends StatelessWidget {
+  final AppData data;
+  const Dashboard({super.key, required this.data});
 
-class ProductsPage extends StatefulWidget { final AppData data; const ProductsPage({super.key,required this.data}); @override State<ProductsPage> createState()=>_ProductsPageState(); }
-class _ProductsPageState extends State<ProductsPage>{ @override Widget build(BuildContext c)=>widget.data.products.isEmpty?const Center(child:Text('Nessun prodotto. Premi “Nuovo prodotto”.')):ListView.builder(padding:const EdgeInsets.all(12),itemCount:widget.data.products.length,itemBuilder:(c,i){final p=widget.data.products[i]; return Card(child:ListTile(title:Text(p.name,style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text('Ore: ${p.hours} · Materiali: € ${p.materials.toStringAsFixed(2)} · Artistico: ${p.artistic.toInt()}/5\nCosto: € ${p.cost(widget.data).toStringAsFixed(2)} · Prezzo consigliato: € ${p.recommended(widget.data).toStringAsFixed(2)}'),isThreeLine:true,trailing:PopupMenuButton(itemBuilder:(_)=>[const PopupMenuItem(value:'edit',child:Text('Modifica')),const PopupMenuItem(value:'delete',child:Text('Elimina'))],onSelected:(v)async{if(v=='delete'){widget.data.products.removeAt(i);}else{await Navigator.push(c,MaterialPageRoute(builder:(_)=>ProductForm(data:widget.data,product:p,index:i)));} await widget.data.save();setState((){});}));}); }
+  @override
+  Widget build(BuildContext c) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  data.name.isEmpty ? 'La tua attività' : data.name,
+                  style: Theme.of(c).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                const Text('Calcolo professionale del prezzo artigianale'),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(child: _stat('Prodotti', data.products.length.toString(), Icons.inventory_2)),
+                    Expanded(child: _stat('Spese/ora', '€ ${data.fixedPerHour.toStringAsFixed(2)}', Icons.euro)),
+                    Expanded(child: _stat('Ora lavoro', '€ ${data.hourlyValue.toStringAsFixed(2)}', Icons.schedule)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _info('Come funziona', 'Materiali + lavoro + quota spese fisse + valore artistico 0–5 + margine. I costi interni non vengono mostrati nel preventivo.'),
+        const SizedBox(height: 12),
+        _info('Valore artistico', '0 = standard · 1 = personalizzazione · 2 = creativo · 3 = artistico · 4 = molto complesso · 5 = pezzo unico'),
+      ],
+    );
+  }
 
-class ProductForm extends StatefulWidget { final AppData data; final Product? product; final int? index; const ProductForm({super.key,required this.data,this.product,this.index}); @override State<ProductForm> createState()=>_ProductFormState(); }
-class _ProductFormState extends State<ProductForm>{ final n=TextEditingController(),d=TextEditingController(),m=TextEditingController(),h=TextEditingController(),e=TextEditingController(); double artistic=0; @override void initState(){super.initState();final p=widget.product;if(p!=null){n.text=p.name;d.text=p.desc;m.text=p.materials.toString();h.text=p.hours.toString();e.text=p.extra.toString();artistic=p.artistic;}} double num(TextEditingController x)=>double.tryParse(x.text.replaceAll(',','.'))??0; @override Widget build(BuildContext c){final temp=Product(name:n.text.isEmpty?'Nuovo prodotto':n.text,desc:d.text,materials:num(m),hours:num(h),extra:num(e),artistic:artistic);return Scaffold(appBar:AppBar(title:Text(widget.product==null?'Nuovo prodotto':'Modifica prodotto')),body:ListView(padding:const EdgeInsets.all(18),children:[TextField(controller:n,decoration:const InputDecoration(labelText:'Nome prodotto',border:OutlineInputBorder())),const SizedBox(height:12),TextField(controller:d,decoration:const InputDecoration(labelText:'Descrizione',border:OutlineInputBorder()),maxLines:2),const SizedBox(height:12),TextField(controller:m,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Costo materiali (€)',border:OutlineInputBorder())),const SizedBox(height:12),TextField(controller:h,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Ore lavorative',border:OutlineInputBorder())),const SizedBox(height:12),TextField(controller:e,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Altri costi (€)',border:OutlineInputBorder())),const SizedBox(height:18),Text('Valore artistico: ${artistic.toInt()}/5',style:const TextStyle(fontWeight:FontWeight.bold)),Slider(value:artistic,min:0,max:5,divisions:5,label:artistic.toInt().toString(),onChanged:(v)=>setState(()=>artistic=v)),Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Anteprima calcolo',style:Theme.of(c).textTheme.titleMedium),Text('Costo reale: € ${temp.cost(widget.data).toStringAsFixed(2)}'),Text('Prezzo consigliato: € ${temp.recommended(widget.data).toStringAsFixed(2)}',style:const TextStyle(fontWeight:FontWeight.bold))])),const SizedBox(height:18),FilledButton.icon(onPressed:()async{final p=Product(name:n.text.trim(),desc:d.text.trim(),materials:num(m),hours:num(h),extra:num(e),artistic:artistic);if(widget.index!=null)widget.data.products[widget.index!]=p;else widget.data.products.add(p);await widget.data.save();if(mounted)Navigator.pop(c);},icon:const Icon(Icons.save),label:const Text('Salva prodotto'))]));}}
+  Widget _stat(String a, String b, IconData i) => Column(
+    children: [Icon(i, size: 28), const SizedBox(height: 5), Text(b, style: const TextStyle(fontWeight: FontWeight.bold)), Text(a, style: const TextStyle(fontSize: 12))],
+  );
+
+  Widget _info(String t, String x) => Card(
+    child: ListTile(leading: const Icon(Icons.info_outline), title: Text(t, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text(x)),
+  );
+}
+
+class ProductsPage extends StatefulWidget {
+  final AppData data;
+  const ProductsPage({super.key, required this.data});
+  @override State<ProductsPage> createState() => _ProductsPageState();
+}
+
+class _ProductsPageState extends State<ProductsPage> {
+  @override
+  Widget build(BuildContext c) {
+    if (widget.data.products.isEmpty) return const Center(child: Text('Nessun prodotto. Premi “Nuovo prodotto”.'));
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: widget.data.products.length,
+      itemBuilder: (c, i) {
+        final p = widget.data.products[i];
+        return Card(
+          child: ListTile(
+            title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text('Ore: ${p.hours} · Materiali: € ${p.materials.toStringAsFixed(2)} · Artistico: ${p.artistic.toInt()}/5\nCosto: € ${p.cost(widget.data).toStringAsFixed(2)} · Prezzo consigliato: € ${p.recommended(widget.data).toStringAsFixed(2)}'),
+            isThreeLine: true,
+            trailing: PopupMenuButton<String>(
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'edit', child: Text('Modifica')),
+                PopupMenuItem(value: 'delete', child: Text('Elimina')),
+              ],
+              onSelected: (v) async {
+                if (v == 'delete') {
+                  widget.data.products.removeAt(i);
+                } else {
+                  await Navigator.push(c, MaterialPageRoute(builder: (_) => ProductForm(data: widget.data, product: p, index: i)));
+                }
+                await widget.data.save();
+                if (mounted) setState(() {});
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class ProductForm extends StatefulWidget {
+  final AppData data;
+  final Product? product;
+  final int? index;
+  const ProductForm({super.key, required this.data, this.product, this.index});
+  @override State<ProductForm> createState() => _ProductFormState();
+}
+
+class _ProductFormState extends State<ProductForm> {
+  final n = TextEditingController();
+  final d = TextEditingController();
+  final m = TextEditingController();
+  final h = TextEditingController();
+  final e = TextEditingController();
+  double artistic = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.product;
+    if (p != null) {
+      n.text = p.name; d.text = p.desc; m.text = p.materials.toString(); h.text = p.hours.toString(); e.text = p.extra.toString(); artistic = p.artistic;
+    }
+  }
+
+  double numValue(TextEditingController x) => double.tryParse(x.text.replaceAll(',', '.')) ?? 0;
+
+  @override
+  Widget build(BuildContext c) {
+    final temp = Product(name: n.text.isEmpty ? 'Nuovo prodotto' : n.text, desc: d.text, materials: numValue(m), hours: numValue(h), extra: numValue(e), artistic: artistic);
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.product == null ? 'Nuovo prodotto' : 'Modifica prodotto')),
+      body: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          TextField(controller: n, onChanged: (_) => setState(() {}), decoration: const InputDecoration(labelText: 'Nome prodotto', border: OutlineInputBorder())),
+          const SizedBox(height: 12),
+          TextField(controller: d, decoration: const InputDecoration(labelText: 'Descrizione', border: OutlineInputBorder()), maxLines: 2),
+          const SizedBox(height: 12),
+          TextField(controller: m, onChanged: (_) => setState(() {}), keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Costo materiali (€)', border: OutlineInputBorder())),
+          const SizedBox(height: 12),
+          TextField(controller: h, onChanged: (_) => setState(() {}), keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Ore lavorative', border: OutlineInputBorder())),
+          const SizedBox(height: 12),
+          TextField(controller: e, onChanged: (_) => setState(() {}), keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Altri costi (€)', border: OutlineInputBorder())),
+          const SizedBox(height: 18),
+          Text('Valore artistico: ${artistic.toInt()}/5', style: const TextStyle(fontWeight: FontWeight.bold)),
+          Slider(value: artistic, min: 0, max: 5, divisions: 5, label: artistic.toInt().toString(), onChanged: (v) => setState(() => artistic = v)),
+          Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Anteprima calcolo', style: Theme.of(c).textTheme.titleMedium), Text('Costo reale: € ${temp.cost(widget.data).toStringAsFixed(2)}'), Text('Prezzo consigliato: € ${temp.recommended(widget.data).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold))]))),
+          const SizedBox(height: 18),
+          FilledButton.icon(
+            onPressed: () async {
+              final p = Product(name: n.text.trim().isEmpty ? 'Nuovo prodotto' : n.text.trim(), desc: d.text.trim(), materials: numValue(m), hours: numValue(h), extra: numValue(e), artistic: artistic);
+              if (widget.index != null) { widget.data.products[widget.index!] = p; } else { widget.data.products.add(p); }
+              await widget.data.save();
+              if (mounted) Navigator.pop(c);
+            },
+            icon: const Icon(Icons.save), label: const Text('Salva prodotto'),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class QuotesPage extends StatelessWidget { final AppData data; const QuotesPage({super.key,required this.data}); @override Widget build(BuildContext c)=>ListView(padding:const EdgeInsets.all(16),children:[Card(child:ListTile(leading:const Icon(Icons.picture_as_pdf),title:const Text('Crea un preventivo'),subtitle:const Text('Seleziona un prodotto e genera un PDF con i dati della tua attività.'),trailing:const Icon(Icons.chevron_right),onTap:()=>showDialog(context:c,builder:(_)=>QuoteDialog(data:data))))]); }
 class QuoteDialog extends StatefulWidget { final AppData data; const QuoteDialog({super.key,required this.data}); @override State<QuoteDialog> createState()=>_QuoteDialogState(); }
 class _QuoteDialogState extends State<QuoteDialog>{final client=TextEditingController();int? selected;final price=TextEditingController();@override Widget build(BuildContext c)=>AlertDialog(title:const Text('Nuovo preventivo'),content:SizedBox(width:500,child:ListView(shrinkWrap:true,children:[TextField(controller:client,decoration:const InputDecoration(labelText:'Cliente')),const SizedBox(height:10),DropdownButtonFormField<int>(value:selected,decoration:const InputDecoration(labelText:'Prodotto'),items:List.generate(widget.data.products.length,(i)=>DropdownMenuItem(value:i,child:Text(widget.data.products[i].name))),onChanged:(v){setState(()=>selected=v);if(v!=null)price.text=widget.data.products[v].recommended(widget.data).toStringAsFixed(2);}),const SizedBox(height:10),TextField(controller:price,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Prezzo preventivo (€)'))])),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Annulla')),FilledButton(onPressed:selected==null?null:()async{final p=widget.data.products[selected!];final q=Quote(client:client.text,product:p,price:double.tryParse(price.text.replaceAll(',','.'))??p.recommended(widget.data),date:DateTime.now());await makePdf(widget.data,q);if(c.mounted)Navigator.pop(c);},child:const Text('Genera PDF'))]);}
 
-Future<void> makePdf(AppData d,Quote q)async{final doc=pw.Document();doc.addPage(pw.Page(pageFormat:PdfPageFormat.a4,build:(ctx)=>pw.Column(crossAxisAlignment:pw.CrossAxisAlignment.start,children:[pw.Text(d.name.isEmpty?'ATTIVITÀ ARTIGIANA':d.name,style:pw.TextStyle(fontSize:20,fontWeight:pw.FontWeight.bold)),pw.SizedBox(height:4),pw.Text([d.owner,d.address,d.vat.isEmpty?'':'P.IVA ${d.vat}',d.phone,d.email].where((x)=>x.isNotEmpty).join(' · ')),pw.SizedBox(height:30),pw.Text('PREVENTIVO',style:pw.TextStyle(fontSize:24,fontWeight:pw.FontWeight.bold)),pw.Text('Data: ${DateFormat('dd/MM/yyyy').format(q.date)}'),pw.Text('Cliente: ${q.client}'),pw.SizedBox(height:24),pw.Table(border:pw.TableBorder.all(),children:[[pw.Padding(padding:const pw.EdgeInsets.all(8),child:pw.Text('Descrizione')),pw.Padding(padding:const pw.EdgeInsets.all(8),child:pw.Text('Quantità')),pw.Padding(padding:const pw.EdgeInsets.all(8),child:pw.Text('Prezzo')),],[pw.Padding(padding:const pw.EdgeInsets.all(8),child:pw.Text(q.product.name)),pw.Padding(padding:const pw.EdgeInsets.all(8),child:pw.Text('1')),pw.Padding(padding:const pw.EdgeInsets.all(8),child:pw.Text('€ ${q.price.toStringAsFixed(2)}'))]]),pw.SizedBox(height:30),pw.Align(alignment:pw.Alignment.centerRight,child:pw.Text('TOTALE: € ${q.price.toStringAsFixed(2)}',style:pw.TextStyle(fontSize:18,fontWeight:pw.FontWeight.bold))),pw.Spacer(),pw.Text('Grazie per aver scelto la nostra attività.')])));await Printing.layoutPdf(onLayout:(_)=>doc.save());}
+Future<void> makePdf(AppData d, Quote q) async {
+  final doc = pw.Document();
+  doc.addPage(
+    pw.Page(
+      pageFormat: PdfPageFormat.a4,
+      build: (ctx) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(d.name.isEmpty ? 'ATTIVITÀ ARTIGIANA' : d.name, style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 4),
+          pw.Text([d.owner, d.address, if (d.vat.isNotEmpty) 'P.IVA ${d.vat}', d.phone, d.email].where((x) => x.isNotEmpty).join(' · ')),
+          pw.SizedBox(height: 30),
+          pw.Text('PREVENTIVO', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
+          pw.Text('Data: ${DateFormat('dd/MM/yyyy').format(q.date)}'),
+          pw.Text('Cliente: ${q.client}'),
+          pw.SizedBox(height: 24),
+          pw.Table(
+            border: pw.TableBorder.all(),
+            children: [
+              pw.TableRow(children: [
+                pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Descrizione')),
+                pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Quantità')),
+                pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Prezzo')),
+              ]),
+              pw.TableRow(children: [
+                pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(q.product.name)),
+                pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('1')),
+                pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('€ ${q.price.toStringAsFixed(2)}')),
+              ]),
+            ],
+          ),
+          pw.SizedBox(height: 30),
+          pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text('TOTALE: € ${q.price.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold))),
+          pw.Spacer(),
+          pw.Text('Grazie per aver scelto la nostra attività.'),
+        ],
+      ),
+    ),
+  );
+  await Printing.layoutPdf(onLayout: (_) => doc.save());
+}
 
 class SettingsPage extends StatefulWidget { final AppData data; const SettingsPage({super.key,required this.data}); @override State<SettingsPage> createState()=>_SettingsPageState(); }
 class _SettingsPageState extends State<SettingsPage>{late TextEditingController name,owner,address,vat,fiscal,phone,email,website,iban,fixed,hours,hourly,margin;@override void initState(){super.initState();final d=widget.data;name=TextEditingController(text:d.name);owner=TextEditingController(text:d.owner);address=TextEditingController(text:d.address);vat=TextEditingController(text:d.vat);fiscal=TextEditingController(text:d.fiscal);phone=TextEditingController(text:d.phone);email=TextEditingController(text:d.email);website=TextEditingController(text:d.website);iban=TextEditingController(text:d.iban);fixed=TextEditingController(text:d.fixedMonthly.toString());hours=TextEditingController(text:d.hoursMonthly.toString());hourly=TextEditingController(text:d.hourlyValue.toString());margin=TextEditingController(text:d.margin.toString());} @override Widget build(BuildContext c)=>ListView(padding:const EdgeInsets.all(16),children:[const Text('Dati dell’attività',style:TextStyle(fontSize:20,fontWeight:FontWeight.bold)),const SizedBox(height:12),...[_f(name,'Nome attività'),_f(owner,'Titolare / Ragione sociale'),_f(address,'Indirizzo'),_f(vat,'Partita IVA'),_f(fiscal,'Codice fiscale'),_f(phone,'Telefono'),_f(email,'Email'),_f(website,'Sito web'),_f(iban,'IBAN')],const SizedBox(height:18),const Text('Costi e calcolo',style:TextStyle(fontSize:20,fontWeight:FontWeight.bold)),const SizedBox(height:12),...[_f(fixed,'Spese fisse mensili (€)',num:true),_f(hours,'Ore lavorabili mensili',num:true),_f(hourly,'Valore della tua ora (€)',num:true),_f(margin,'Margine commerciale (%)',num:true)],const SizedBox(height:12),Text('Quota spese fisse per ora: € ${widget.data.fixedPerHour.toStringAsFixed(2)}'),const SizedBox(height:20),FilledButton.icon(onPressed:()async{final d=widget.data;d.name=name.text;d.owner=owner.text;d.address=address.text;d.vat=vat.text;d.fiscal=fiscal.text;d.phone=phone.text;d.email=email.text;d.website=website.text;d.iban=iban.text;d.fixedMonthly=double.tryParse(fixed.text.replaceAll(',','.'))??0;d.hoursMonthly=double.tryParse(hours.text.replaceAll(',','.'))??160;d.hourlyValue=double.tryParse(hourly.text.replaceAll(',','.'))??30;d.margin=double.tryParse(margin.text.replaceAll(',','.'))??20;await d.save();setState((){});if(c.mounted)ScaffoldMessenger.of(c).showSnackBar(const SnackBar(content:Text('Dati salvati')));},icon:const Icon(Icons.save),label:const Text('Salva impostazioni'))]); Widget _f(TextEditingController x,String l,{bool num=false})=>Padding(padding:const EdgeInsets.only(bottom:10),child:TextField(controller:x,keyboardType:num?TextInputType.number:null,decoration:InputDecoration(labelText:l,border:const OutlineInputBorder())));}
