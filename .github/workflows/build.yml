@@ -1,4 +1,4 @@
-name: Build APK + Windows Setup FIX8
+name: Build APK + Windows Setup FIX9
 
 on:
   push:
@@ -15,6 +15,7 @@ jobs:
           cache: true
       - run: flutter create --platforms=android --project-name prezzo_artigiano --org com.artigiano --no-pub .
       - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos --no-fatal-warnings
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
         with:
@@ -40,28 +41,21 @@ jobs:
         shell: pwsh
         run: flutter create --platforms=windows --project-name prezzo_artigiano --org com.artigiano --no-pub .
 
-      - name: Doctor
-        run: flutter doctor -v
-
       - name: Dependencies
         run: flutter pub get
 
-      - name: Analyze
+      - name: Analyze source
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Build Windows
         run: flutter build windows --release -v
 
-      - name: Verify executable and runtime
+      - name: Verify executable
         shell: pwsh
         run: |
-          $release = "build\windows\x64\runner\Release"
-          $exe = Join-Path $release "prezzo_artigiano.exe"
+          $exe = "build\windows\x64\runner\Release\prezzo_artigiano.exe"
           if (!(Test-Path $exe)) { throw "EXE non trovato: $exe" }
-          Write-Host "Release contents:"
-          Get-ChildItem $release -Recurse | Select-Object FullName,Length
-          Write-Host "EXE:"
-          Get-Item $exe | Select-Object FullName,Length
+          Get-ChildItem "build\windows\x64\runner\Release" -Recurse | Select-Object FullName,Length
 
       - name: Install Inno Setup
         shell: pwsh
@@ -79,11 +73,11 @@ jobs:
       - name: Upload Setup
         uses: actions/upload-artifact@v4
         with:
-          name: prezzo-artigiano-windows-setup-fix8
-          path: installer_output/Prezzo-Artigiano-Setup-FIX8.exe
+          name: prezzo-artigiano-windows-setup-fix9
+          path: installer_output/Prezzo-Artigiano-Setup-FIX9.exe
 
-      - name: Upload raw Windows build for diagnostics
+      - name: Upload raw Windows build
         uses: actions/upload-artifact@v4
         with:
-          name: prezzo-artigiano-windows-raw-fix8
+          name: prezzo-artigiano-windows-raw-fix9
           path: build/windows/x64/runner/Release/**
