@@ -1,4 +1,4 @@
-name: Build APK + Windows Setup FIX10
+name: Build APK + Windows Setup FIX11
 
 on:
   push:
@@ -62,6 +62,13 @@ jobs:
           if (!(Test-Path $exe)) { throw "EXE non trovato: $exe" }
           Get-ChildItem "build\windows\x64\runner\Release" -Recurse | Select-Object FullName,Length
 
+      - name: Download Microsoft Visual C++ Redistributable x64
+        shell: pwsh
+        run: |
+          $url = "https://aka.ms/vc14/vc_redist.x64.exe"
+          Invoke-WebRequest -Uri $url -OutFile "vc_redist.x64.exe"
+          if (!(Test-Path "vc_redist.x64.exe")) { throw "VC++ Redistributable non scaricato" }
+
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup -y --no-progress
@@ -78,11 +85,11 @@ jobs:
       - name: Upload Setup
         uses: actions/upload-artifact@v4
         with:
-          name: prezzo-artigiano-windows-setup-fix10
-          path: installer_output/Prezzo-Artigiano-Setup-FIX10.exe
+          name: prezzo-artigiano-windows-setup-fix11
+          path: installer_output/Prezzo-Artigiano-Setup-FIX11.exe
 
       - name: Upload raw Windows build
         uses: actions/upload-artifact@v4
         with:
-          name: prezzo-artigiano-windows-raw-fix10
+          name: prezzo-artigiano-windows-raw-fix11
           path: build/windows/x64/runner/Release/**
