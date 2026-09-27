@@ -1,17 +1,17 @@
-name: Build Android APK + Windows
+name: Build APK + Windows
 
 on:
   push:
-    branches: [ main, master ]
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
-  build-apk:
-    name: Build Android APK
-    runs-on: ubuntu-latest
+  build:
+    name: Build Android and Windows in parallel
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [android, windows]
+    runs-on: ${{ matrix.target == 'android' && 'ubuntu-latest' || 'windows-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,54 +22,36 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Generate Android project files
-        run: flutter create --platforms=android --no-pub .
+      - name: Generate Flutter platform files
+        shell: bash
+        run: |
+          cp lib/main.dart /tmp/main.dart
+          cp pubspec.yaml /tmp/pubspec.yaml
+          flutter create --platforms=android,windows --project-name prezzo_artigiano --org com.artigiano .
+          cp /tmp/main.dart lib/main.dart
+          cp /tmp/pubspec.yaml pubspec.yaml
 
-      - name: Flutter pub get
+      - name: Get dependencies
         run: flutter pub get
 
       - name: Build APK
+        if: matrix.target == 'android'
         run: flutter build apk --release
 
       - name: Upload APK
+        if: matrix.target == 'android'
         uses: actions/upload-artifact@v4
         with:
           name: prezzo-artigiano-android-apk
           path: build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
-
-  build-windows:
-    name: Build Windows
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
-      - name: Enable Windows desktop
-        run: flutter config --enable-windows-desktop
-
-      - name: Generate Windows project files
-        run: flutter create --platforms=windows --no-pub .
-
-      - name: Flutter pub get
-        run: flutter pub get
 
       - name: Build Windows
+        if: matrix.target == 'windows'
         run: flutter build windows --release
 
-      - name: Create Windows ZIP
-        shell: pwsh
-        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath prezzo-artigiano-windows.zip -Force
-
       - name: Upload Windows
+        if: matrix.target == 'windows'
         uses: actions/upload-artifact@v4
         with:
           name: prezzo-artigiano-windows
-          path: prezzo-artigiano-windows.zip
-          if-no-files-found: error
+          path: build/windows/x64/runner/Release/
