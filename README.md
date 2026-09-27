@@ -1,21 +1,28 @@
 # Prezzo Artigiano
 
-Flutter app for artisans: product costing, working hours, fixed costs, artistic value (0-5) and professional quotes.
+Progetto Flutter per Android e Windows.
+
+## Windows
+
+GitHub Actions compila l'app Windows e crea automaticamente:
+
+`Prezzo-Artigiano-Setup.exe`
+
+L'installer:
+- installa l'app nella cartella Programmi;
+- crea il collegamento nel menu Start;
+- crea il collegamento sul desktop;
+- permette la disinstallazione da Windows;
+- avvia l'app al termine dell'installazione.
+
+Non è necessario estrarre manualmente DLL o cartelle Flutter.
 
 ## GitHub Actions
 
-The workflow in `.github/workflows/build.yml` runs the Android and Windows builds **in parallel**.
+Dopo la build, scaricare l'artifact:
 
-It deliberately generates the missing Flutter platform folders on the GitHub runner before building:
+`prezzo-artigiano-windows-setup`
 
-- Android: `flutter create --platforms=android --no-pub .`
-- Windows: `flutter create --platforms=windows --no-pub .`
+All'interno si trova:
 
-This prevents errors such as `android/app/build.gradle not found` when the repository does not contain generated platform folders.
-
-### Artifacts
-
-After the workflow finishes, GitHub Actions publishes:
-
-- `prezzo-artigiano-android-apk`
-- `prezzo-artigiano-windows`
+`Prezzo-Artigiano-Setup.exe`
