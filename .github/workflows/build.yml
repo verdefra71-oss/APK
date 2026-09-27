@@ -31,12 +31,16 @@ jobs:
           cp /tmp/main.dart lib/main.dart
           cp /tmp/pubspec.yaml pubspec.yaml
 
+      - name: Setup Android SDK
+        if: matrix.target == 'android'
+        uses: android-actions/setup-android@v3
+
       - name: Ensure Android SDK 36
         if: matrix.target == 'android'
         shell: bash
         run: |
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
       - name: Set Android compileSdk 36
         if: matrix.target == 'android'
