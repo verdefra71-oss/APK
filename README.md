@@ -1,16 +1,8 @@
-# Dimensionamento Audio Chiese V2
+# Dimensionamento Audio Chiese — V3
 
-Versione semplice.
-Forme disponibili:
-- Navata rettangolare
-- A ventaglio
-- Circolare
-- Quadrata
-- Croce latina
-- Croce greca
+Progetto minimale per GitHub.
 
-Diffusori:
-- DAP CS-330: prese 10/20 W a 100 V
-- Colonna 50 W: prese 12,5/25/50 W a 100 V
+La cartella Android NON è inclusa volutamente: GitHub Actions genera un progetto Android pulito con `flutter create`, evitando incompatibilità Gradle.
 
-Il risultato è un dimensionamento preliminare.
+Forme: rettangolare, ventaglio, circolare, quadrata, croce latina, croce greca.
+Diffusori: DAP CS-330 (10/20 W) e colonna 50 W (12,5/25/50 W).
