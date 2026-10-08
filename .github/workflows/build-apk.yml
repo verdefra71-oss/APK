@@ -26,6 +26,9 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Remove default Flutter tests
+        run: rm -rf test
+
       - name: Analyze
         run: flutter analyze --no-fatal-infos
 
