@@ -82,8 +82,8 @@ Carico totale: ${carico.toStringAsFixed(1)} W
 Amplificatore consigliato: circa $ampli W
 Altezza indicativa: ${altezza.toStringAsFixed(1)} m
 
-I diffusori devono essere orientati verso la zona di ascolto,
-in avanti lungo la direzione utile, evitando pareti, volte e superfici riflettenti.''';
+I diffusori sono previsti fissati a parete e orientati verso la zona di ascolto,
+con la direzione principale rivolta in avanti, evitando pareti e volte riflettenti.''';
     });
   }
 
@@ -125,7 +125,7 @@ in avanti lungo la direzione utile, evitando pareti, volte e superfici rifletten
           SizedBox(height: 360, child: Card(child: CustomPaint(
             painter: ChurchPainter(forma, math.max(1, int.tryParse(navate.text) ?? 1), nDiff)))),
           const SizedBox(height: 8),
-          const Text('Le frecce indicano la direzione orientativa dei diffusori verso la zona di ascolto.',
+          const Text('I diffusori sono rappresentati sulle pareti; le frecce indicano la direzione del suono verso la zona di ascolto.',
             textAlign: TextAlign.center, style: TextStyle(fontStyle: FontStyle.italic)),
           const SizedBox(height: 12),
           const Text('Pre-dimensionamento: il progetto definitivo richiede verifica di SPL, direttività, riverberazione, rumore di fondo e misure acustiche reali.', style: TextStyle(fontSize: 13)),
@@ -159,24 +159,29 @@ class ChurchPainter extends CustomPainter {
     if (forma == 'Navata rettangolare') {
       c.drawRect(r,p);
       final rows = math.max(1, navate);
-      final perRow = math.max(2,(speakers/rows).ceil());
-      for (int row=0; row<rows; row++) {
-        final y = r.top + r.height*(row+.5)/rows;
-        for (int i=0;i<perRow;i++) {
-          final x = r.left+r.width*(i+1)/(perRow+1);
-          arrow(c, Offset(x,y), const Offset(0,-1), sp);
+      final perSide = math.max(1, (speakers / (rows * 2)).ceil());
+      final laneHeight = r.height / rows;
+
+      for (int row = 0; row < rows; row++) {
+        final top = r.top + row * laneHeight;
+        for (int i = 0; i < perSide; i++) {
+          final y = top + laneHeight * (i + 1) / (perSide + 1);
+          arrow(c, Offset(r.left, y),
+              unit(Offset(r.width * .65, -r.height * .08)), sp);
+          arrow(c, Offset(r.right, y),
+              unit(Offset(-r.width * .65, -r.height * .08)), sp);
         }
       }
-      label(c,'PRESBITERIO / ZONA DI ASCOLTO',Offset(center.dx,r.top-12));
+      label(c,'PRESBITERIO / DIREZIONE DI ASCOLTO',Offset(center.dx,r.top-12));
     } else if (forma == 'Quadrata') {
       c.drawRect(r,p);
       final n=math.max(2,(speakers/2).ceil());
       for(int i=0;i<n;i++){
-        final x=r.left+r.width*(i+1)/(n+1);
-        arrow(c,Offset(x,r.bottom),const Offset(0,-1),sp);
-        arrow(c,Offset(x,r.top),const Offset(0,1),sp);
+        final y=r.top+r.height*(i+1)/(n+1);
+        arrow(c,Offset(r.left,y),unit(Offset(r.width*.6,-r.height*.08)),sp);
+        arrow(c,Offset(r.right,y),unit(Offset(-r.width*.6,-r.height*.08)),sp);
       }
-      label(c,'ZONA DI ASCOLTO',center);
+      label(c,'ZONA DI ASCOLTO / DIREZIONE PRINCIPALE',center);
     } else if (forma == 'Circolare') {
       c.drawOval(r,p);
       final n=math.max(4,speakers);
