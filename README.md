@@ -1,11 +1,7 @@
-# Dimensionamento Audio Chiese — V3
+# Dimensionamento Audio Chiese
+Pre-dimensionamento preliminare di impianti audio per chiese.
 
-Progetto minimale per GitHub.
-
-La cartella Android NON è inclusa volutamente: GitHub Actions genera un progetto Android pulito con `flutter create`, evitando incompatibilità Gradle.
-
-Forme: rettangolare, ventaglio, circolare, quadrata, croce latina, croce greca.
-Diffusori: DAP CS-330 (10/20 W) e colonna 50 W (12,5/25/50 W).
-
-
-Il progetto non include il test Flutter predefinito, che faceva riferimento a MyApp.
+Dati: forma, numero di navate, dimensioni, riverberazione e diffusore.
+Forme: navata rettangolare, circolare, quadrata, croce latina e croce greca.
+Il numero di navate influenza direttamente il numero e la disposizione dei diffusori.
+Le frecce del disegno indicano l'orientamento verso la zona di ascolto.
