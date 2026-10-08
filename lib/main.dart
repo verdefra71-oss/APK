@@ -1,356 +1,125 @@
-import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
-void main() => runApp(const ArtigianoApp());
+void main() => runApp(const AudioChurchApp());
 
-class ArtigianoApp extends StatelessWidget {
-  const ArtigianoApp({super.key});
+class AudioChurchApp extends StatelessWidget {
+  const AudioChurchApp({super.key});
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    debugShowCheckedModeBanner: false,
-    title: 'Prezzo Artigiano',
-    theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.amber, scaffoldBackgroundColor: const Color(0xfffafafa)),
-    home: const HomePage(),
-  );
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Dimensionamento Chiese Audio',
+      theme: ThemeData(colorSchemeSeed: Colors.amber, useMaterial3: true),
+      home: const HomePage(),
+    );
+  }
 }
 
-class HomePage extends StatefulWidget { const HomePage({super.key}); @override State<HomePage> createState()=>_HomePageState(); }
+class Result {
+  final int count;
+  final String model;
+  final double tap;
+  final double load;
+  final int amp;
+  final double spacing;
+  final double height;
+  Result(this.count, this.model, this.tap, this.load, this.amp, this.spacing, this.height);
+}
+
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+  @override State<HomePage> createState() => _HomePageState();
+}
+
 class _HomePageState extends State<HomePage> {
-  int index=0; final data=AppData();
-  @override void initState(){super.initState(); data.load().then((_)=>setState((){}));}
-  @override Widget build(BuildContext context){
-    final pages=[Dashboard(data:data), ProductsPage(data:data), QuotesPage(data:data), SettingsPage(data:data)];
-    return Scaffold(
-      appBar: AppBar(title: const Text('Prezzo Artigiano',style: TextStyle(fontWeight: FontWeight.bold)), actions:[IconButton(onPressed:()=>data.save(),icon:const Icon(Icons.save))]),
-      body: pages[index],
-      bottomNavigationBar: NavigationBar(selectedIndex:index,onDestinationSelected:(i)=>setState(()=>index=i),destinations: const [NavigationDestination(icon:Icon(Icons.dashboard_outlined),selectedIcon:Icon(Icons.dashboard),label:'Home'),NavigationDestination(icon:Icon(Icons.inventory_2_outlined),selectedIcon:Icon(Icons.inventory_2),label:'Prodotti'),NavigationDestination(icon:Icon(Icons.picture_as_pdf_outlined),selectedIcon:Icon(Icons.picture_as_pdf),label:'Preventivi'),NavigationDestination(icon:Icon(Icons.business_outlined),selectedIcon:Icon(Icons.business),label:'Attività')]),
-      floatingActionButton: index==1 ? FloatingActionButton.extended(onPressed:() async { await Navigator.push(context,MaterialPageRoute(builder:(_)=>ProductForm(data:data))); setState((){}); },icon:const Icon(Icons.add),label:const Text('Nuovo prodotto')) : null,
-    );
-  }
-}
+  final length = TextEditingController(text: '30');
+  final width = TextEditingController(text: '10');
+  final roomHeight = TextEditingController(text: '8');
+  String acoustics = 'Riverberante';
+  String model = 'Automatico';
+  Result? result;
 
-class AppData {
-  String name=''; String owner=''; String address=''; String vat=''; String fiscal=''; String phone=''; String email=''; String website=''; String iban=''; Uint8List? logo;
-  double fixedMonthly=0, hoursMonthly=160, hourlyValue=30, margin=20;
-  List<Product> products=[]; List<Quote> quotes=[];
-  Future<void> load() async { final p=await SharedPreferences.getInstance(); name=p.getString('name')??''; logo = p.getString('logo')!=null ? base64Decode(p.getString('logo')!) : null; owner=p.getString('owner')??''; address=p.getString('address')??''; vat=p.getString('vat')??''; fiscal=p.getString('fiscal')??''; phone=p.getString('phone')??''; email=p.getString('email')??''; website=p.getString('website')??''; iban=p.getString('iban')??''; fixedMonthly=p.getDouble('fixed')??0; hoursMonthly=p.getDouble('hours')??160; hourlyValue=p.getDouble('hourly')??30; margin=p.getDouble('margin')??20; final s=p.getString('products'); if(s!=null) products=(jsonDecode(s) as List).map((e)=>Product.fromJson(e)).toList(); }
-  Future<void> save() async { final p=await SharedPreferences.getInstance(); await p.setString('name',name); if (logo != null) await p.setString('logo', base64Encode(logo!)); else await p.remove('logo'); await p.setString('owner',owner); await p.setString('address',address); await p.setString('vat',vat); await p.setString('fiscal',fiscal); await p.setString('phone',phone); await p.setString('email',email); await p.setString('website',website); await p.setString('iban',iban); await p.setDouble('fixed',fixedMonthly); await p.setDouble('hours',hoursMonthly); await p.setDouble('hourly',hourlyValue); await p.setDouble('margin',margin); await p.setString('products',jsonEncode(products.map((e)=>e.toJson()).toList())); }
-  double get fixedPerHour=>hoursMonthly<=0?0:fixedMonthly/hoursMonthly;
-}
-class Product { String name,desc; double materials,hours,extra,artistic; Product({required this.name,required this.desc,required this.materials,required this.hours,required this.extra,required this.artistic}); double cost(AppData d)=>materials+hours*(d.hourlyValue+d.fixedPerHour)+extra; double artisticPct()=>artistic*0.10; double recommended(AppData d)=>cost(d)*(1+artisticPct())*(1+d.margin/100); Map<String,dynamic> toJson()=>{'name':name,'desc':desc,'materials':materials,'hours':hours,'extra':extra,'artistic':artistic}; factory Product.fromJson(Map<String,dynamic> j)=>Product(name:j['name'],desc:j['desc'],materials:(j['materials'] as num).toDouble(),hours:(j['hours'] as num).toDouble(),extra:(j['extra'] as num).toDouble(),artistic:(j['artistic'] as num).toDouble()); }
-class Quote { String client; Product product; double price; DateTime date; Quote({required this.client,required this.product,required this.price,required this.date}); }
+  @override void dispose() { length.dispose(); width.dispose(); roomHeight.dispose(); super.dispose(); }
 
-class Dashboard extends StatelessWidget {
-  final AppData data;
-  const Dashboard({super.key, required this.data});
-
-  @override
-  Widget build(BuildContext c) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  data.name.isEmpty ? 'La tua attività' : data.name,
-                  style: Theme.of(c).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 6),
-                const Text('Calcolo professionale del prezzo artigianale'),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(child: _stat('Prodotti', data.products.length.toString(), Icons.inventory_2)),
-                    Expanded(child: _stat('Spese/ora', '€ ${data.fixedPerHour.toStringAsFixed(2)}', Icons.euro)),
-                    Expanded(child: _stat('Ora lavoro', '€ ${data.hourlyValue.toStringAsFixed(2)}', Icons.schedule)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        _info('Come funziona', 'Materiali + lavoro + quota spese fisse + valore artistico 0–5 + margine. I costi interni non vengono mostrati nel preventivo.'),
-        const SizedBox(height: 12),
-        _info('Valore artistico', '0 = standard · 1 = personalizzazione · 2 = creativo · 3 = artistico · 4 = molto complesso · 5 = pezzo unico'),
-      ],
-    );
-  }
-
-  Widget _stat(String a, String b, IconData i) => Column(
-    children: [Icon(i, size: 28), const SizedBox(height: 5), Text(b, style: const TextStyle(fontWeight: FontWeight.bold)), Text(a, style: const TextStyle(fontSize: 12))],
-  );
-
-  Widget _info(String t, String x) => Card(
-    child: ListTile(leading: const Icon(Icons.info_outline), title: Text(t, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text(x)),
-  );
-}
-
-class ProductsPage extends StatefulWidget {
-  final AppData data;
-  const ProductsPage({super.key, required this.data});
-  @override State<ProductsPage> createState() => _ProductsPageState();
-}
-
-class _ProductsPageState extends State<ProductsPage> {
-  @override
-  Widget build(BuildContext c) {
-    if (widget.data.products.isEmpty) return const Center(child: Text('Nessun prodotto. Premi “Nuovo prodotto”.'));
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: widget.data.products.length,
-      itemBuilder: (c, i) {
-        final p = widget.data.products[i];
-        return Card(
-          child: ListTile(
-            title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text('Ore: ${p.hours} · Materiali: € ${p.materials.toStringAsFixed(2)} · Artistico: ${p.artistic.toInt()}/5\nCosto: € ${p.cost(widget.data).toStringAsFixed(2)} · Prezzo consigliato: € ${p.recommended(widget.data).toStringAsFixed(2)}'),
-            isThreeLine: true,
-            trailing: PopupMenuButton<String>(
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'edit', child: Text('Modifica')),
-                PopupMenuItem(value: 'delete', child: Text('Elimina')),
-              ],
-              onSelected: (v) async {
-                if (v == 'delete') {
-                  widget.data.products.removeAt(i);
-                } else {
-                  await Navigator.push(c, MaterialPageRoute(builder: (_) => ProductForm(data: widget.data, product: p, index: i)));
-                }
-                await widget.data.save();
-                if (mounted) setState(() {});
-              },
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class ProductForm extends StatefulWidget {
-  final AppData data;
-  final Product? product;
-  final int? index;
-  const ProductForm({super.key, required this.data, this.product, this.index});
-  @override State<ProductForm> createState() => _ProductFormState();
-}
-
-class _ProductFormState extends State<ProductForm> {
-  final n = TextEditingController();
-  final d = TextEditingController();
-  final m = TextEditingController();
-  final h = TextEditingController();
-  final e = TextEditingController();
-  double artistic = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    final p = widget.product;
-    if (p != null) {
-      n.text = p.name; d.text = p.desc; m.text = p.materials.toString(); h.text = p.hours.toString(); e.text = p.extra.toString(); artistic = p.artistic;
+  void calculate() {
+    final l = double.tryParse(length.text.replaceAll(',', '.'));
+    final w = double.tryParse(width.text.replaceAll(',', '.'));
+    final h = double.tryParse(roomHeight.text.replaceAll(',', '.'));
+    if (l == null || w == null || h == null || l <= 0 || w <= 0 || h <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Inserisci dimensioni valide.')));
+      return;
     }
+    final spacing = acoustics == 'Normale' ? 7.0 : acoustics == 'Riverberante' ? 5.5 : 4.5;
+    var count = math.max(2, (l / spacing).ceil());
+    if (w > 12) count *= 2;
+    final selected = model == 'Automatico' ? (acoustics == 'Normale' ? 'Colonna 50 W' : 'DAP CS-330') : model;
+    double tap;
+    if (selected == 'DAP CS-330') tap = acoustics == 'Molto riverberante' ? 10 : 20;
+    else tap = acoustics == 'Molto riverberante' ? 12.5 : 25;
+    final load = count * tap;
+    final amp = ((load * 1.30) / 50).ceil() * 50;
+    final installHeight = math.min(3.5, math.max(2.5, h * .35));
+    setState(() => result = Result(count, selected, tap, load, amp, spacing, installHeight));
   }
 
-  double numValue(TextEditingController x) => double.tryParse(x.text.replaceAll(',', '.')) ?? 0;
-
   @override
-  Widget build(BuildContext c) {
-    final temp = Product(name: n.text.isEmpty ? 'Nuovo prodotto' : n.text, desc: d.text, materials: numValue(m), hours: numValue(h), extra: numValue(e), artistic: artistic);
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.product == null ? 'Nuovo prodotto' : 'Modifica prodotto')),
-      body: ListView(
-        padding: const EdgeInsets.all(18),
-        children: [
-          TextField(controller: n, onChanged: (_) => setState(() {}), decoration: const InputDecoration(labelText: 'Nome prodotto', border: OutlineInputBorder())),
+      appBar: AppBar(title: const Text('Dimensionamento Chiese Audio'), centerTitle: true),
+      body: SafeArea(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Dati della chiesa', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
-          TextField(controller: d, decoration: const InputDecoration(labelText: 'Descrizione', border: OutlineInputBorder()), maxLines: 2),
-          const SizedBox(height: 12),
-          TextField(controller: m, onChanged: (_) => setState(() {}), keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Costo materiali (€)', border: OutlineInputBorder())),
-          const SizedBox(height: 12),
-          TextField(controller: h, onChanged: (_) => setState(() {}), keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Ore lavorative', border: OutlineInputBorder())),
-          const SizedBox(height: 12),
-          TextField(controller: e, onChanged: (_) => setState(() {}), keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Altri costi (€)', border: OutlineInputBorder())),
-          const SizedBox(height: 18),
-          Text('Valore artistico: ${artistic.toInt()}/5', style: const TextStyle(fontWeight: FontWeight.bold)),
-          Slider(value: artistic, min: 0, max: 5, divisions: 5, label: artistic.toInt().toString(), onChanged: (v) => setState(() => artistic = v)),
-          Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Anteprima calcolo', style: Theme.of(c).textTheme.titleMedium), Text('Costo reale: € ${temp.cost(widget.data).toStringAsFixed(2)}'), Text('Prezzo consigliato: € ${temp.recommended(widget.data).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold))]))),
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: () async {
-              final p = Product(name: n.text.trim().isEmpty ? 'Nuovo prodotto' : n.text.trim(), desc: d.text.trim(), materials: numValue(m), hours: numValue(h), extra: numValue(e), artistic: artistic);
-              if (widget.index != null) { widget.data.products[widget.index!] = p; } else { widget.data.products.add(p); }
-              await widget.data.save();
-              if (mounted) Navigator.pop(c);
-            },
-            icon: const Icon(Icons.save), label: const Text('Salva prodotto'),
-          ),
-        ],
-      ),
+          Row(children: [Expanded(child: _field(length, 'Lunghezza (m)')), const SizedBox(width: 10), Expanded(child: _field(width, 'Larghezza (m)'))]),
+          const SizedBox(height: 10), _field(roomHeight, 'Altezza (m)'),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(value: acoustics, decoration: const InputDecoration(labelText: 'Acustica', border: OutlineInputBorder()), items: const [DropdownMenuItem(value: 'Normale', child: Text('Normale')), DropdownMenuItem(value: 'Riverberante', child: Text('Riverberante')), DropdownMenuItem(value: 'Molto riverberante', child: Text('Molto riverberante'))], onChanged: (v) => setState(() => acoustics = v!)),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(value: model, decoration: const InputDecoration(labelText: 'Diffusore', border: OutlineInputBorder()), items: const [DropdownMenuItem(value: 'Automatico', child: Text('Automatico')), DropdownMenuItem(value: 'DAP CS-330', child: Text('DAP CS-330 — 10/20 W')), DropdownMenuItem(value: 'Colonna 50 W', child: Text('Colonna 50 W — 12,5/25/50 W'))], onChanged: (v) => setState(() => model = v!)),
+          const SizedBox(height: 14),
+          SizedBox(height: 50, child: FilledButton.icon(onPressed: calculate, icon: const Icon(Icons.calculate), label: const Text('CALCOLA DIMENSIONAMENTO'))),
+        ]))),
+        if (result != null) ...[
+          const SizedBox(height: 14),
+          _resultCard(result!),
+          const SizedBox(height: 14),
+          Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Schema indicativo', style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 8), SizedBox(height: 240, child: ChurchPainterView(result: result!, length: double.parse(length.text.replaceAll(',', '.')), width: double.parse(width.text.replaceAll(',', '.'))))])),
+          const SizedBox(height: 10),
+          const Card(color: Color(0xFFFFF8E1), child: Padding(padding: EdgeInsets.all(14), child: Text('NOTA TECNICA\nQuesto è un dimensionamento preliminare. Per il progetto definitivo occorre verificare direttività reale, riverbero, rumore di fondo, SPL richiesto e caratteristiche acustiche della chiesa.', style: TextStyle(fontWeight: FontWeight.w600)))),
+        ]
+      ]))),
     );
   }
+
+  Widget _field(TextEditingController c, String label) => TextField(controller: c, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()));
+
+  Widget _resultCard(Result r) => Card(elevation: 2, child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text('Configurazione consigliata', style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 10),
+    _line('Diffusori', '${r.count} × ${r.model}'), _line('Presa 100 V', '${r.tap} W per diffusore'), _line('Carico totale', '${r.load.toStringAsFixed(1)} W'), _line('Amplificatore', '${r.amp} W — 100 V'), _line('Interasse indicativo', '${r.spacing.toStringAsFixed(1)} m'), _line('Altezza installazione', '${r.height.toStringAsFixed(1)} m'),
+  ]));
+  Widget _line(String a, String b) => Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: Row(children: [Expanded(child: Text(a)), Text(b, style: const TextStyle(fontWeight: FontWeight.bold))]));
 }
 
-class QuotesPage extends StatelessWidget { final AppData data; const QuotesPage({super.key,required this.data}); @override Widget build(BuildContext c)=>ListView(padding:const EdgeInsets.all(16),children:[Card(child:ListTile(leading:const Icon(Icons.picture_as_pdf),title:const Text('Crea un preventivo'),subtitle:const Text('Seleziona un prodotto e genera un PDF con i dati della tua attività.'),trailing:const Icon(Icons.chevron_right),onTap:()=>showDialog(context:c,builder:(_)=>QuoteDialog(data:data))))]); }
-class QuoteDialog extends StatefulWidget { final AppData data; const QuoteDialog({super.key,required this.data}); @override State<QuoteDialog> createState()=>_QuoteDialogState(); }
-class _QuoteDialogState extends State<QuoteDialog>{final client=TextEditingController();int? selected;final price=TextEditingController();@override Widget build(BuildContext c)=>AlertDialog(title:const Text('Nuovo preventivo'),content:SizedBox(width:500,child:ListView(shrinkWrap:true,children:[TextField(controller:client,decoration:const InputDecoration(labelText:'Cliente')),const SizedBox(height:10),DropdownButtonFormField<int>(value:selected,decoration:const InputDecoration(labelText:'Prodotto'),items:List.generate(widget.data.products.length,(i)=>DropdownMenuItem(value:i,child:Text(widget.data.products[i].name))),onChanged:(v){setState(()=>selected=v);if(v!=null)price.text=widget.data.products[v].recommended(widget.data).toStringAsFixed(2);}),const SizedBox(height:10),TextField(controller:price,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Prezzo preventivo (€)'))])),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Annulla')),FilledButton(onPressed:selected==null?null:()async{final p=widget.data.products[selected!];final q=Quote(client:client.text,product:p,price:double.tryParse(price.text.replaceAll(',','.'))??p.recommended(widget.data),date:DateTime.now());await makePdf(widget.data,q);if(c.mounted)Navigator.pop(c);},child:const Text('Genera PDF'))]);}
-
-Future<void> makePdf(AppData d, Quote q) async {
-  final regular = pw.Font.ttf(await rootBundle.load('assets/fonts/DejaVuSans.ttf'));
-  final bold = pw.Font.ttf(await rootBundle.load('assets/fonts/DejaVuSans-Bold.ttf'));
-  final doc = pw.Document(theme: pw.ThemeData.withFont(base: regular, bold: bold));
-  final logoImage = d.logo != null ? pw.MemoryImage(d.logo!) : null;
-  doc.addPage(
-    pw.Page(
-      pageFormat: PdfPageFormat.a4,
-      build: (ctx) => pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-            if (logoImage != null) pw.Container(width: 90, height: 70, margin: const pw.EdgeInsets.only(right: 14), child: pw.Image(logoImage!, fit: pw.BoxFit.contain)),
-            pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-              pw.Text(d.name.isEmpty ? 'ATTIVITÀ ARTIGIANA' : d.name, style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 4),
-              pw.Text([d.owner, d.address, if (d.vat.isNotEmpty) 'P.IVA ${d.vat}', d.phone, d.email].where((x) => x.isNotEmpty).join(' · ')),
-            ])),
-          ]),
-          pw.SizedBox(height: 30),
-          pw.Text('PREVENTIVO', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
-          pw.Text('Data: ${DateFormat('dd/MM/yyyy').format(q.date)}'),
-          pw.Text('Cliente: ${q.client}'),
-          pw.SizedBox(height: 24),
-          pw.Table(
-            border: pw.TableBorder.all(),
-            children: [
-              pw.TableRow(children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Descrizione')),
-                pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Quantità')),
-                pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Prezzo')),
-              ]),
-              pw.TableRow(children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(q.product.name)),
-                pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('1')),
-                pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('€ ${q.price.toStringAsFixed(2)}')),
-              ]),
-            ],
-          ),
-          pw.SizedBox(height: 30),
-          pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text('TOTALE: € ${q.price.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold))),
-          pw.Spacer(),
-          pw.Text('Grazie per aver scelto la nostra attività.'),
-        ],
-      ),
-    ),
-  );
-  await Printing.layoutPdf(onLayout: (_) => doc.save());
+class ChurchPainterView extends StatelessWidget {
+  final Result result; final double length, width;
+  const ChurchPainterView({super.key, required this.result, required this.length, required this.width});
+  @override Widget build(BuildContext context) => CustomPaint(painter: ChurchPainter(result), child: const SizedBox.expand());
 }
-
-class SettingsPage extends StatefulWidget {
-  final AppData data;
-  const SettingsPage({super.key, required this.data});
-  @override State<SettingsPage> createState() => _SettingsPageState();
-}
-
-class _SettingsPageState extends State<SettingsPage> {
-  late TextEditingController name, owner, address, vat, fiscal, phone, email, website, iban, fixed, hours, hourly, margin;
-
-  @override
-  void initState() {
-    super.initState();
-    final d = widget.data;
-    name = TextEditingController(text: d.name);
-    owner = TextEditingController(text: d.owner);
-    address = TextEditingController(text: d.address);
-    vat = TextEditingController(text: d.vat);
-    fiscal = TextEditingController(text: d.fiscal);
-    phone = TextEditingController(text: d.phone);
-    email = TextEditingController(text: d.email);
-    website = TextEditingController(text: d.website);
-    iban = TextEditingController(text: d.iban);
-    fixed = TextEditingController(text: d.fixedMonthly.toString());
-    hours = TextEditingController(text: d.hoursMonthly.toString());
-    hourly = TextEditingController(text: d.hourlyValue.toString());
-    margin = TextEditingController(text: d.margin.toString());
+class ChurchPainter extends CustomPainter {
+  final Result result; ChurchPainter(this.result);
+  @override void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+    final rect = Rect.fromLTWH(20, 25, size.width - 40, size.height - 50);
+    paint.color = Colors.grey.shade200; canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(10)), paint);
+    paint.color = Colors.amber.shade700;
+    for (int i = 0; i < result.count; i++) {
+      final x = rect.left + rect.width * ((i + .5) / result.count);
+      final y = i.isEven ? rect.top + 25 : rect.bottom - 25;
+      canvas.drawCircle(Offset(x, y), 7, paint);
+    }
+    final text = TextPainter(text: TextSpan(text: '${result.count} diffusori', style: const TextStyle(color: Colors.black87, fontSize: 13, fontWeight: FontWeight.bold)), textDirection: TextDirection.ltr)..layout();
+    text.paint(canvas, Offset((size.width - text.width) / 2, size.height / 2 - 7));
   }
-
-  Future<void> _pickLogo() async {
-    final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90, maxWidth: 1200);
-    if (file == null) return;
-    widget.data.logo = await file.readAsBytes();
-    await widget.data.save();
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _removeLogo() async {
-    widget.data.logo = null;
-    await widget.data.save();
-    if (mounted) setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext c) => ListView(
-    padding: const EdgeInsets.all(16),
-    children: [
-      const Text('Dati dell’attività', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 12),
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Logo dell’attività', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            Center(child: Container(
-              width: 180, height: 120,
-              decoration: BoxDecoration(border: Border.all(color: Theme.of(c).dividerColor), borderRadius: BorderRadius.circular(12)),
-              child: widget.data.logo == null
-                  ? const Icon(Icons.business, size: 52)
-                  : ClipRRect(borderRadius: BorderRadius.circular(11), child: Image.memory(widget.data.logo!, fit: BoxFit.contain)),
-            )),
-            const SizedBox(height: 12),
-            Row(children: [
-              Expanded(child: FilledButton.icon(onPressed: _pickLogo, icon: const Icon(Icons.upload), label: Text(widget.data.logo == null ? 'Inserisci logo' : 'Cambia logo'))),
-              if (widget.data.logo != null) ...[
-                const SizedBox(width: 8),
-                IconButton(onPressed: _removeLogo, tooltip: 'Rimuovi logo', icon: const Icon(Icons.delete_outline)),
-              ],
-            ]),
-            const SizedBox(height: 6),
-            const Text('Il logo verrà inserito automaticamente nell’intestazione del preventivo PDF.', style: TextStyle(fontSize: 12)),
-          ]),
-        ),
-      ),
-      const SizedBox(height: 12),
-      ...[_f(name,'Nome attività'),_f(owner,'Titolare / Ragione sociale'),_f(address,'Indirizzo'),_f(vat,'Partita IVA'),_f(fiscal,'Codice fiscale'),_f(phone,'Telefono'),_f(email,'Email'),_f(website,'Sito web'),_f(iban,'IBAN')],
-      const SizedBox(height: 18),
-      const Text('Costi e calcolo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 12),
-      ...[_f(fixed,'Spese fisse mensili (€)',num:true),_f(hours,'Ore lavorabili mensili',num:true),_f(hourly,'Valore della tua ora (€)',num:true),_f(margin,'Margine commerciale (%)',num:true)],
-      const SizedBox(height: 12),
-      Text('Quota spese fisse per ora: € ${widget.data.fixedPerHour.toStringAsFixed(2)}'),
-      const SizedBox(height: 20),
-      FilledButton.icon(onPressed:() async {
-        final d=widget.data;
-        d.name=name.text; d.owner=owner.text; d.address=address.text; d.vat=vat.text; d.fiscal=fiscal.text; d.phone=phone.text; d.email=email.text; d.website=website.text; d.iban=iban.text;
-        d.fixedMonthly=double.tryParse(fixed.text.replaceAll(',','.'))??0; d.hoursMonthly=double.tryParse(hours.text.replaceAll(',','.'))??160; d.hourlyValue=double.tryParse(hourly.text.replaceAll(',','.'))??30; d.margin=double.tryParse(margin.text.replaceAll(',','.'))??20;
-        await d.save(); setState((){});
-        if(c.mounted) ScaffoldMessenger.of(c).showSnackBar(const SnackBar(content:Text('Dati salvati')));
-      }, icon:const Icon(Icons.save), label:const Text('Salva impostazioni')),
-    ],
-  );
-
-  Widget _f(TextEditingController x,String l,{bool num=false})=>Padding(padding:const EdgeInsets.only(bottom:10),child:TextField(controller:x,keyboardType:num?const TextInputType.numberWithOptions(decimal:true):null,decoration:InputDecoration(labelText:l,border:const OutlineInputBorder())));
+  @override bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
