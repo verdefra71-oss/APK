@@ -1,42 +1,24 @@
 name: Build APK
-
 on:
   push:
     branches: [main, master]
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.35.7"
           channel: stable
           cache: true
-
-      - name: Generate clean Android project
-        run: flutter create --platforms=android --org com.verdefra71 .
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Remove default Flutter tests
-        run: rm -rf test
-
-      - name: Analyze
-        run: flutter analyze --no-fatal-infos
-
-      - name: Build APK
-        run: flutter build apk --release
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - run: flutter create --platforms=android --org com.verdefra71 .
+      - run: flutter pub get
+      - run: rm -rf test
+      - run: flutter analyze --no-fatal-infos
+      - run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
         with:
           name: dimensionamento-audio-chiese-apk
           path: build/app/outputs/flutter-apk/app-release.apk
