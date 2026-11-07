@@ -28,7 +28,7 @@ App Android nativa in Kotlin + Jetpack Compose.
 5. Seleziona **Build → Build Bundle(s) / APK(s) → Build APK(s)**.
 6. APK debug: `app/build/outputs/apk/debug/app-debug.apk`.
 
-Il workflow GitHub Actions installa JDK 17, Android SDK 36 e Gradle 8.11.1, quindi esegue `gradle --no-daemon assembleDebug`. Al termine pubblica l'APK come artifact `boccie-soccer-debug-apk` nella pagina del run. Il progetto non include il Gradle Wrapper (`gradlew`).
+Il workflow GitHub Actions usa l'SDK Android già presente sui runner Ubuntu, installa le piattaforme Android 36 e Build Tools 36.0.0, configura JDK 17 e Gradle 8.11.1, quindi esegue `gradle --no-daemon assembleDebug`. Evita l'azione `android-actions/setup-android` perché in alcuni runner tenta di installare il vecchio pacchetto SDK `tools`, non più disponibile. Al termine pubblica l'APK come artifact `boccie-soccer-debug-apk` nella pagina del run. Il progetto non include il Gradle Wrapper (`gradlew`).
 
 ## Identificativi
 - Application ID: `it.naif.bocciesoccer`
