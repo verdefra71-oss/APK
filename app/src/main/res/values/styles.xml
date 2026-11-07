@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.BoccieSoccer" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#21C58E</item>
+        <item name="android:statusBarColor">#101D32</item>
+        <item name="android:navigationBarColor">#101D32</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
