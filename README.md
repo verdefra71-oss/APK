@@ -28,7 +28,7 @@ App Android nativa in Kotlin + Jetpack Compose.
 5. Seleziona **Build → Build Bundle(s) / APK(s) → Build APK(s)**.
 6. APK debug: `app/build/outputs/apk/debug/app-debug.apk`.
 
-Il progetto non include il Gradle Wrapper (`gradlew`). Per aggiungerlo da una macchina con Gradle installato: `gradle wrapper --gradle-version 8.11.1`.
+Il workflow GitHub Actions installa JDK 17, Android SDK 36 e Gradle 8.11.1, quindi esegue `gradle --no-daemon assembleDebug`. Al termine pubblica l'APK come artifact `boccie-soccer-debug-apk` nella pagina del run. Il progetto non include il Gradle Wrapper (`gradlew`).
 
 ## Identificativi
 - Application ID: `it.naif.bocciesoccer`
