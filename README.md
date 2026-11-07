@@ -44,3 +44,7 @@ Il workflow GitHub Actions individua il binario `sdkmanager` cercandolo sotto `/
 
 ## Contribuire
 Apri una issue descrivendo il problema, il dispositivo Android e i passaggi per riprodurlo. Non pubblicare password, token o dati personali.
+
+
+## Configurazione JVM
+Java e Kotlin sono configurati entrambi per generare bytecode JVM 17 (`compileOptions` e `kotlinOptions.jvmTarget`), evitando l'errore di compatibilità tra `compileDebugJavaWithJavac` e `compileDebugKotlin`.
