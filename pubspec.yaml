@@ -1,15 +1,22 @@
-name: dimensionamento_audio_chiese
-description: Pre-dimensionamento preliminare di sistemi audio per chiese.
-publish_to: "none"
+name: calcio_live
+description: App per raccogliere e aprire i servizi ufficiali di streaming sportivo.
+publish_to: 'none'
 version: 1.0.0+1
+
 environment:
-  sdk: ">=3.9.0 <4.0.0"
+  sdk: '>=3.4.0 <4.0.0'
+
 dependencies:
   flutter:
     sdk: flutter
+  cupertino_icons: ^1.0.8
+  url_launcher: ^6.3.2
+  shared_preferences: ^2.5.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
+  flutter_lints: ^5.0.0
+
 flutter:
   uses-material-design: true
